@@ -71,7 +71,7 @@ function findHighlights(doc: any, triggers: VoiceTrigger[]): DecorationSet {
   const text = doc.textContent.toLowerCase();
 
   triggers.forEach(({ phrase, color }) => {
-    const pos = text.indexOf(phrase);
+    const pos = text.indexOf(phrase.toLowerCase());
 
     if (pos !== -1) {
       // Convert text position to document position

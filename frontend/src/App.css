@@ -121,31 +121,6 @@
   margin-left: 1.75rem;
 }
 
-.voice-comment-logic {
-  background-color: #e6f2ff;
-  border-color: #4d9fff;
-}
-
-.voice-comment-emotion {
-  background-color: #ffe6f2;
-  border-color: #ff66b3;
-}
-
-.voice-comment-doubt {
-  background-color: #fffbe6;
-  border-color: #ffdd33;
-}
-
-.voice-comment-memory {
-  background-color: #e6ffe6;
-  border-color: #66ff66;
-}
-
-.voice-comment-nostalgia {
-  background-color: #f3e6ff;
-  border-color: #b366ff;
-}
-
 @keyframes fadeIn {
   from {
     opacity: 0;
