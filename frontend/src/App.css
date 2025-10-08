@@ -116,11 +116,15 @@
   cursor: pointer;
 }
 
-/* @@@ Stacking: each card offset by 30% of card height */
-.voice-comment:hover {
+/* @@@ Stacking: latest card on top, older cards stack below */
+/* Only non-top cards can pop up on hover */
+.voice-comment:not(.top-card):hover {
   z-index: 1000 !important;
-  transform: translateY(0) !important;
   box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+}
+
+.top-card {
+  cursor: default;
 }
 
 .voice-header {

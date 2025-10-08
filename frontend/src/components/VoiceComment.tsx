@@ -6,6 +6,7 @@ interface VoiceCommentProps {
   text: string;
   icon: string;
   color: string;
+  isTopCard: boolean;
   style?: CSSProperties;
 }
 
@@ -24,13 +25,13 @@ const colorMap: Record<string, { background: string; border: string }> = {
   purple: { background: '#f3e6ff', border: '#b366ff' },
 };
 
-export default function VoiceComment({ voice, text, icon, color, style }: VoiceCommentProps) {
+export default function VoiceComment({ voice, text, icon, color, isTopCard, style }: VoiceCommentProps) {
   const Icon = iconMap[icon as keyof typeof iconMap];
   const colors = colorMap[color] || { background: '#f0f0f0', border: '#ccc' };
 
   return (
     <div
-      className="voice-comment"
+      className={`voice-comment ${isTopCard ? 'top-card' : ''}`}
       style={{
         backgroundColor: colors.background,
         borderColor: colors.border,

@@ -101,9 +101,10 @@ function App() {
             text={voice.text}
             icon={voice.icon}
             color={voice.color}
+            isTopCard={index === voices.length - 1}
             style={{
-              zIndex: voices.length - index,
-              transform: `translateY(${index * 30}%)`,
+              zIndex: index + 1,
+              transform: `translateY(${(voices.length - 1 - index) * 30}%)`,
             }}
           />
         ))}
