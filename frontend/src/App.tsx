@@ -90,27 +90,40 @@ function App() {
     detectVoices(currentText, voiceTriggers);
   }, [voiceTriggers]);
 
+  const stackedVoices = voices.slice(0, -1);
+  const latestVoice = voices[voices.length - 1];
+
   return (
     <div className="book-interface">
       <WritingArea onChange={handleTextChange} triggers={voiceTriggers} />
-      <VoicesPanel>
-        {voices.map((voice, index) => (
+      <VoicesPanel
+        stackedCards={stackedVoices.map((voice, index) => (
           <VoiceComment
             key={index}
             voice={voice.name}
             text={voice.text}
             icon={voice.icon}
             color={voice.color}
-            isTopCard={index === voices.length - 1}
+            isTopCard={false}
             style={{
               zIndex: index + 1,
-              transform: index === voices.length - 1
-                ? `translateY(${Math.max(0, (voices.length - 2) * 50 + 100)}%)`
-                : `translateY(${index * 50}%)`,
+              transform: `translateY(${index * 50}%)`,
             }}
           />
         ))}
-      </VoicesPanel>
+        latestCard={latestVoice && (
+          <VoiceComment
+            voice={latestVoice.name}
+            text={latestVoice.text}
+            icon={latestVoice.icon}
+            color={latestVoice.color}
+            isTopCard={true}
+            style={{
+              zIndex: voices.length,
+            }}
+          />
+        )}
+      />
       <BinderRings />
     </div>
   );
