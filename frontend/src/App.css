@@ -52,13 +52,13 @@
 .voices-container {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 4rem;
   margin-left: 2rem;
 }
 
 .voice-stack {
   position: relative;
-  min-height: 100px;
+  width: 100%;
 }
 
 .latest-card-container {
@@ -136,6 +136,8 @@
 
 .top-card {
   cursor: default;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+  transform: scale(1.02) rotate(-1deg);
 }
 
 .voice-header {

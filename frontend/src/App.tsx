@@ -107,7 +107,7 @@ function App() {
             isTopCard={false}
             style={{
               zIndex: index + 1,
-              transform: `translateY(${index * 50}%)`,
+              transform: `translateY(${index * 55}%)`,
             }}
           />
         ))}
@@ -123,6 +123,7 @@ function App() {
             }}
           />
         )}
+        stackedCount={stackedVoices.length}
       />
       <BinderRings />
     </div>
