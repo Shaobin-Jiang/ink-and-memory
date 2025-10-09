@@ -1,13 +1,10 @@
-import { FaBrain, FaHeart, FaQuestion, FaCloud } from 'react-icons/fa';
-import { CSSProperties } from 'react';
+import { FaBrain, FaHeart, FaQuestion, FaCloud, FaTheaterMasks, FaEye, FaFistRaised, FaLightbulb, FaShieldAlt, FaWind, FaFire, FaCompass } from 'react-icons/fa';
 
 interface VoiceCommentProps {
   voice: string;
   text: string;
   icon: string;
   color: string;
-  isTopCard: boolean;
-  style?: CSSProperties;
 }
 
 const iconMap = {
@@ -15,6 +12,14 @@ const iconMap = {
   heart: FaHeart,
   question: FaQuestion,
   cloud: FaCloud,
+  masks: FaTheaterMasks,
+  eye: FaEye,
+  fist: FaFistRaised,
+  lightbulb: FaLightbulb,
+  shield: FaShieldAlt,
+  wind: FaWind,
+  fire: FaFire,
+  compass: FaCompass,
 };
 
 const colorMap: Record<string, { background: string; border: string }> = {
@@ -25,17 +30,16 @@ const colorMap: Record<string, { background: string; border: string }> = {
   purple: { background: '#f3e6ff', border: '#b366ff' },
 };
 
-export default function VoiceComment({ voice, text, icon, color, isTopCard, style }: VoiceCommentProps) {
+export default function VoiceComment({ voice, text, icon, color }: VoiceCommentProps) {
   const Icon = iconMap[icon as keyof typeof iconMap];
   const colors = colorMap[color] || { background: '#f0f0f0', border: '#ccc' };
 
   return (
     <div
-      className={`voice-comment ${isTopCard ? 'top-card' : ''}`}
+      className="voice-comment"
       style={{
         backgroundColor: colors.background,
         borderColor: colors.border,
-        ...style,
       }}
     >
       <div className="voice-header">

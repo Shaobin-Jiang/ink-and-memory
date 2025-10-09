@@ -16,9 +16,14 @@ interface Voice {
 }
 
 function App() {
+  // @@@ Multi-user support - Generate unique session ID on mount
+  const sessionId = useRef(crypto.randomUUID()).current;
+
   const [voices, setVoices] = useState<Voice[]>([]);
   const [voiceTriggers, setVoiceTriggers] = useState<VoiceTrigger[]>([]);
   const [currentText, setCurrentText] = useState<string>('');
+  const [cursorPosition, setCursorPosition] = useState<number>(0);
+  const [focusedVoiceIndex, setFocusedVoiceIndex] = useState<number | undefined>(undefined);
   const currentTextRef = useRef<string>('');
   const lastAnalyzedTextRef = useRef<string>('');
   const isAnalyzingRef = useRef<boolean>(false);
@@ -40,6 +45,28 @@ function App() {
     setVoices(newVoices);
   };
 
+  // @@@ Track which voice comment to focus based on cursor position
+  useEffect(() => {
+    if (voices.length === 0) {
+      setFocusedVoiceIndex(undefined);
+      return;
+    }
+
+    // Find the comment whose trigger phrase is closest to cursor
+    let closestIndex = 0;
+    let closestDistance = Math.abs(voices[0].position - cursorPosition);
+
+    for (let i = 1; i < voices.length; i++) {
+      const distance = Math.abs(voices[i].position - cursorPosition);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = i;
+      }
+    }
+
+    setFocusedVoiceIndex(closestIndex);
+  }, [cursorPosition, voices]);
+
   const analyzeIfNeeded = async () => {
     // Skip if already analyzing
     if (isAnalyzingRef.current) {
@@ -59,7 +86,7 @@ function App() {
 
     try {
       console.log(`🔍 Calling backend analysis (${textDiff} chars changed)...`);
-      const backendVoices = await analyzeText(currentTextValue);
+      const backendVoices = await analyzeText(currentTextValue, sessionId);
       console.log(`✅ Got ${backendVoices.length} voices from backend`);
 
       setVoiceTriggers(backendVoices);
@@ -90,41 +117,18 @@ function App() {
     detectVoices(currentText, voiceTriggers);
   }, [voiceTriggers]);
 
-  const stackedVoices = voices.slice(0, -1);
-  const latestVoice = voices[voices.length - 1];
-
   return (
     <div className="book-interface">
-      <WritingArea onChange={handleTextChange} triggers={voiceTriggers} />
-      <VoicesPanel
-        stackedCards={stackedVoices.map((voice, index) => (
-          <VoiceComment
-            key={index}
-            voice={voice.name}
-            text={voice.text}
-            icon={voice.icon}
-            color={voice.color}
-            isTopCard={false}
-            style={{
-              zIndex: index + 1,
-              marginTop: index === 0 ? 0 : '-45%',
-            }}
-          />
-        ))}
-        latestCard={latestVoice && (
-          <VoiceComment
-            voice={latestVoice.name}
-            text={latestVoice.text}
-            icon={latestVoice.icon}
-            color={latestVoice.color}
-            isTopCard={true}
-            style={{
-              zIndex: voices.length,
-            }}
-          />
-        )}
-        stackedCount={stackedVoices.length}
+      <WritingArea
+        onChange={handleTextChange}
+        triggers={voiceTriggers}
+        onCursorChange={setCursorPosition}
       />
+      <VoicesPanel focusedVoiceIndex={focusedVoiceIndex}>
+        {voices.map((voice, index) => (
+          <VoiceComment key={index} voice={voice.name} text={voice.text} icon={voice.icon} color={voice.color} />
+        ))}
+      </VoicesPanel>
       <BinderRings />
     </div>
   );

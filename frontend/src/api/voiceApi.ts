@@ -28,13 +28,13 @@ interface StatusResponse {
 /**
  * Trigger voice analysis session
  */
-export async function triggerAnalysis(text: string): Promise<string> {
+export async function triggerAnalysis(text: string, sessionId: string): Promise<string> {
   const response = await fetch(`${API_BASE}/api/trigger`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       session_id: 'analyze_text',
-      params: { text }
+      params: { text, session_id: sessionId }
     })
   });
 
@@ -77,8 +77,8 @@ export async function getAnalysisResult(exec_id: string): Promise<StatusResponse
 /**
  * Analyze text and return voices (all-in-one)
  */
-export async function analyzeText(text: string) {
-  const exec_id = await triggerAnalysis(text);
+export async function analyzeText(text: string, sessionId: string) {
+  const exec_id = await triggerAnalysis(text, sessionId);
   const result = await getAnalysisResult(exec_id);
   return result?.voices || [];
 }

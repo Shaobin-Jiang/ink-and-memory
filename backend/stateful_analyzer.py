@@ -7,12 +7,13 @@ from polycli import PolyAgent
 from polycli.orchestration import pattern
 import config
 import re
+import time
 
 class VoiceTrigger(BaseModel):
     phrase: str = Field(description="Exact trigger phrase from text (verbatim)")
     voice: str = Field(description="Voice archetype name from the available list")
     comment: str = Field(description="What this voice is saying (as if speaking)")
-    icon: str = Field(description="Icon: brain, heart, question, cloud")
+    icon: str = Field(description="Icon: brain, heart, question, cloud, masks, eye, fist, lightbulb, shield, wind, fire, compass")
     color: str = Field(description="Color: blue, pink, yellow, green, purple")
 
 class VoiceAnalysis(BaseModel):
@@ -252,9 +253,45 @@ IMPORTANT:
 
         return self.comments
 
-# Global instance (shared across all session calls)
-global_analyzer = StatefulVoiceAnalyzer()
+# @@@ Multi-user support - Session-based storage
+# Each user gets their own analyzer instance, keyed by session_id
+_user_analyzers = {}  # session_id -> StatefulVoiceAnalyzer
+_last_access = {}     # session_id -> timestamp
 
-def analyze_stateful(agent: PolyAgent, text: str) -> list[dict]:
-    """Wrapper function that uses global analyzer instance."""
-    return global_analyzer.analyze(agent, text)
+# @@@ Session cleanup config
+SESSION_TTL = 3600  # 1 hour - sessions inactive for this long will be cleaned up
+
+def cleanup_stale_sessions():
+    """Remove sessions that haven't been accessed in SESSION_TTL seconds."""
+    now = time.time()
+    stale_sessions = [
+        sid for sid, last_time in _last_access.items()
+        if now - last_time > SESSION_TTL
+    ]
+
+    for sid in stale_sessions:
+        print(f"🗑️  Cleaning up stale session: {sid} (inactive for {SESSION_TTL}s)")
+        del _user_analyzers[sid]
+        del _last_access[sid]
+
+    if stale_sessions:
+        print(f"📊 Active sessions: {len(_user_analyzers)}")
+
+def get_analyzer(session_id: str) -> StatefulVoiceAnalyzer:
+    """Get or create analyzer for this user session."""
+    if session_id not in _user_analyzers:
+        print(f"🆕 Creating new analyzer for session: {session_id}")
+        _user_analyzers[session_id] = StatefulVoiceAnalyzer()
+
+    # Update last access time
+    _last_access[session_id] = time.time()
+
+    return _user_analyzers[session_id]
+
+def analyze_stateful(agent: PolyAgent, text: str, session_id: str) -> list[dict]:
+    """Analyze text using session-isolated analyzer."""
+    # Cleanup stale sessions before processing
+    cleanup_stale_sessions()
+
+    analyzer = get_analyzer(session_id)
+    return analyzer.analyze(agent, text)

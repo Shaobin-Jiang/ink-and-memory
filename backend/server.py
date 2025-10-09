@@ -9,10 +9,10 @@ from stateful_analyzer import analyze_stateful
 @session_def(
     name="Analyze Voices",
     description="Detect inner voices in text using Disco Elysium archetypes",
-    params={"text": str},
+    params={"text": str, "session_id": str},
     category="Analysis"
 )
-def analyze_text(text: str):
+def analyze_text(text: str, session_id: str):
     """
     Analyze text and detect inner voice triggers.
 
@@ -24,6 +24,7 @@ def analyze_text(text: str):
     """
     print(f"\n{'='*60}")
     print(f"🎯 analyze_text() called")
+    print(f"   Session ID: {session_id}")
     print(f"   Text length: {len(text)}")
     print(f"   Text preview: {text[:100]}...")
     print(f"{'='*60}\n")
@@ -32,7 +33,7 @@ def analyze_text(text: str):
     agent = PolyAgent(id="voice-analyzer")
 
     print("Calling analyze_stateful pattern...")
-    voices = analyze_stateful(agent, text)
+    voices = analyze_stateful(agent, text, session_id)
 
     print(f"✅ Got {len(voices)} voices")
     for i, v in enumerate(voices):

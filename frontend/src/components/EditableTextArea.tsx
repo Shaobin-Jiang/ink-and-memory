@@ -6,15 +6,22 @@ import { VoiceHighlight, type VoiceTrigger } from '../extensions/VoiceHighlight'
 interface EditableTextAreaProps {
   onChange: (text: string) => void;
   triggers: VoiceTrigger[];
+  onCursorChange?: (position: number) => void;
 }
 
-export default function EditableTextArea({ onChange, triggers }: EditableTextAreaProps) {
+export default function EditableTextArea({ onChange, triggers, onCursorChange }: EditableTextAreaProps) {
   const editor = useEditor({
     extensions: [
       StarterKit,
       VoiceHighlight.configure({ triggers })
     ],
-    onUpdate: ({ editor }) => onChange(editor.getText()),
+    onUpdate: ({ editor }) => {
+      onChange(editor.getText());
+      onCursorChange?.(editor.state.selection.from);
+    },
+    onSelectionUpdate: ({ editor }) => {
+      onCursorChange?.(editor.state.selection.from);
+    },
     autofocus: true,
   });
 

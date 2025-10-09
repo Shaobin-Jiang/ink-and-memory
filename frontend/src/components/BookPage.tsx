@@ -1,14 +1,18 @@
-import { ReactNode } from 'react';
+import { ReactNode, forwardRef } from 'react';
 
 interface BookPageProps {
   children?: ReactNode;
   side: 'left' | 'right';
 }
 
-export default function BookPage({ children, side }: BookPageProps) {
+const BookPage = forwardRef<HTMLDivElement, BookPageProps>(({ children, side }, ref) => {
   return (
-    <div className={`book-page ${side}-page`}>
+    <div className={`book-page ${side}-page`} ref={ref}>
       {children}
     </div>
   );
-}
+});
+
+BookPage.displayName = 'BookPage';
+
+export default BookPage;

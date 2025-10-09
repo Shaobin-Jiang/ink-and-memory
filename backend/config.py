@@ -17,12 +17,12 @@ VOICE_ARCHETYPES = {
     },
     "Rhetoric": {
         "tagline": "Practice the art of persuasion. Enjoy rigorous intellectual discourse.",
-        "icon": "brain",
+        "icon": "lightbulb",
         "color": "purple"
     },
     "Drama": {
         "tagline": "Play the actor. Lie and detect lies.",
-        "icon": "question",
+        "icon": "masks",
         "color": "pink"
     },
     "Conceptualization": {
@@ -32,12 +32,12 @@ VOICE_ARCHETYPES = {
     },
     "Volition": {
         "tagline": "Hold yourself together. Keep your Morale up.",
-        "icon": "brain",
+        "icon": "shield",
         "color": "green"
     },
     "Inland Empire": {
         "tagline": "Hunches and gut feelings. Dreams in waking life.",
-        "icon": "cloud",
+        "icon": "compass",
         "color": "purple"
     },
     "Empathy": {
@@ -47,17 +47,17 @@ VOICE_ARCHETYPES = {
     },
     "Authority": {
         "tagline": "Intimidate the public. Assert yourself.",
-        "icon": "brain",
+        "icon": "fist",
         "color": "yellow"
     },
     "Electrochemistry": {
         "tagline": "Go to party planet. Love and be loved by drugs.",
-        "icon": "heart",
+        "icon": "fire",
         "color": "pink"
     },
     "Shivers": {
         "tagline": "Raise the hair on your neck. Tune in to the city.",
-        "icon": "cloud",
+        "icon": "wind",
         "color": "blue"
     },
     "Half Light": {
@@ -67,12 +67,12 @@ VOICE_ARCHETYPES = {
     },
     "Perception": {
         "tagline": "See, hear and smell everything. Let no detail go unnoticed.",
-        "icon": "brain",
+        "icon": "eye",
         "color": "green"
     },
     "Composure": {
         "tagline": "Straighten your back. Keep your poker face.",
-        "icon": "brain",
+        "icon": "shield",
         "color": "blue"
     }
 }
