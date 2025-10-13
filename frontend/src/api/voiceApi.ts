@@ -2,7 +2,7 @@
  * API client for voice analysis backend
  */
 
-const API_BASE = 'http://localhost:8765';
+const API_BASE = 'http://101.201.227.31:8765';
 
 interface TriggerResponse {
   success: boolean;
