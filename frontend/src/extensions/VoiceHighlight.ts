@@ -12,6 +12,7 @@ export interface VoiceTrigger {
 
 export interface VoiceHighlightOptions {
   triggers: VoiceTrigger[];
+  onPhraseHover?: (phrase: string | null) => void;
 }
 
 export const VoiceHighlight = Extension.create<VoiceHighlightOptions>({
@@ -20,11 +21,13 @@ export const VoiceHighlight = Extension.create<VoiceHighlightOptions>({
   addOptions() {
     return {
       triggers: [],
+      onPhraseHover: undefined,
     };
   },
 
   addProseMirrorPlugins() {
     let triggers = this.options.triggers;
+    const onPhraseHover = this.options.onPhraseHover;
 
     return [
       new Plugin({
@@ -59,6 +62,33 @@ export const VoiceHighlight = Extension.create<VoiceHighlightOptions>({
         props: {
           decorations(state) {
             return this.getState(state)?.decorations;
+          },
+
+          // @@@ Hover detection - Find which phrase is being hovered
+          handleDOMEvents: {
+            mouseover(_view, event) {
+              const target = event.target as HTMLElement;
+
+              // Check if hovering over a highlighted element
+              if (target.classList.contains('voice-highlight')) {
+                // Extract the text content
+                const phrase = target.textContent || '';
+                onPhraseHover?.(phrase);
+                return false;
+              }
+              return false;
+            },
+
+            mouseout(_view, event) {
+              const target = event.target as HTMLElement;
+
+              // Check if leaving a highlighted element
+              if (target.classList.contains('voice-highlight')) {
+                onPhraseHover?.(null);
+                return false;
+              }
+              return false;
+            },
           },
         },
       }),

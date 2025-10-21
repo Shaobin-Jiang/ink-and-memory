@@ -6,6 +6,7 @@ interface VoiceCommentProps {
   icon: string;
   color: string;
   onQuote?: () => void;
+  isHovered?: boolean;
 }
 
 const iconMap = {
@@ -31,17 +32,21 @@ const colorMap: Record<string, { background: string; border: string }> = {
   purple: { background: '#f3e6ff', border: '#b366ff' },
 };
 
-export default function VoiceComment({ voice, text, icon, color, onQuote }: VoiceCommentProps) {
+export default function VoiceComment({ voice, text, icon, color, onQuote, isHovered }: VoiceCommentProps) {
   const Icon = iconMap[icon as keyof typeof iconMap];
   const colors = colorMap[color] || { background: '#f0f0f0', border: '#ccc' };
 
   return (
     <div
-      className="voice-comment"
+      className={`voice-comment ${isHovered ? 'hovered' : ''}`}
       style={{
         backgroundColor: colors.background,
         borderColor: colors.border,
-        position: 'relative'
+        position: 'relative',
+        transform: isHovered ? 'scale(1.02)' : 'scale(1)',
+        boxShadow: isHovered ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
+        transition: 'all 0.2s ease',
+        borderWidth: isHovered ? '2px' : '4px',
       }}
     >
       <div className="voice-header">

@@ -9,6 +9,7 @@ interface EditableTextAreaProps {
   onContentChange?: (html: string) => void;
   triggers: VoiceTrigger[];
   onCursorChange?: (position: number) => void;
+  onPhraseHover?: (phrase: string | null) => void;
   content?: string;
 }
 
@@ -18,7 +19,7 @@ export interface EditableTextAreaRef {
 
 const EditableTextArea = forwardRef<EditableTextAreaRef, EditableTextAreaProps>(
   (props, ref) => {
-    const { onChange, onContentChange, triggers, onCursorChange, content } = props;
+    const { onChange, onContentChange, triggers, onCursorChange, onPhraseHover, content } = props;
 
     const editor = useEditor({
       extensions: [
@@ -26,7 +27,10 @@ const EditableTextArea = forwardRef<EditableTextAreaRef, EditableTextAreaProps>(
         Placeholder.configure({
           placeholder: 'write here, I am listening...',
         }),
-        VoiceHighlight.configure({ triggers })
+        VoiceHighlight.configure({
+          triggers,
+          onPhraseHover
+        })
       ],
       content: content || '',
       onUpdate: ({ editor }) => {
@@ -49,6 +53,17 @@ const EditableTextArea = forwardRef<EditableTextAreaRef, EditableTextAreaProps>(
         editor.view.dispatch(tr);
       }
     }, [triggers, editor]);
+
+    // @@@ Update onPhraseHover callback when it changes
+    useEffect(() => {
+      if (editor) {
+        editor.extensionManager.extensions.forEach((ext: any) => {
+          if (ext.name === 'voiceHighlight' && ext.options) {
+            ext.options.onPhraseHover = onPhraseHover;
+          }
+        });
+      }
+    }, [onPhraseHover, editor]);
 
     // Expose insertText method to parent component
     useImperativeHandle(ref, () => ({

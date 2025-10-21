@@ -235,6 +235,13 @@
 .voice-highlight {
   margin: -2px -6px;
   padding: 2px 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.voice-highlight:hover {
+  transform: scale(1.05);
+  filter: brightness(0.95);
 }
 
 .voice-highlight-yellow {

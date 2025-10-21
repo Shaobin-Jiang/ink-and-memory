@@ -60,6 +60,8 @@ function App() {
           color: v.color   // Keep text name: "blue"
         };
       }
+      // Store the original defaults separately (never modified)
+      setDefaultVoiceConfigs(converted);
       // Use localStorage if exists, otherwise use backend defaults
       setVoiceConfigs(getVoices() || converted);
     });
@@ -69,10 +71,12 @@ function App() {
   const [voices, setVoices] = useState<Voice[]>([]);
   const [voiceTriggers, setVoiceTriggers] = useState<VoiceTrigger[]>([]);
   const [voiceConfigs, setVoiceConfigs] = useState<Record<string, VoiceConfig>>({});
+  const [defaultVoiceConfigs, setDefaultVoiceConfigs] = useState<Record<string, VoiceConfig>>({});
   const [currentText, setCurrentText] = useState<string>('');
   const [currentHTML, setCurrentHTML] = useState<string>('');
   const [cursorPosition, setCursorPosition] = useState<number>(0);
   const [focusedVoiceIndex, setFocusedVoiceIndex] = useState<number | undefined>(undefined);
+  const [hoveredPhrase, setHoveredPhrase] = useState<string | null>(null);
   const currentTextRef = useRef<string>('');
   const isAnalyzingRef = useRef<boolean>(false);
   const editorRef = useRef<EditableTextAreaRef>(null);
@@ -236,6 +240,14 @@ function App() {
     detectVoices(currentText, voiceTriggers);
   }, [voiceTriggers]);
 
+  // @@@ Clear old triggers when voice config changes (e.g., Use Default)
+  // This forces immediate re-analysis with new config
+  useEffect(() => {
+    console.log('🔄 Voice config changed, clearing old triggers');
+    setVoiceTriggers([]);
+    setVoices([]);
+  }, [voiceConfigs]);
+
   return (
     <>
       <LeftSidebar currentView={currentView} onViewChange={setCurrentView} />
@@ -247,19 +259,30 @@ function App() {
             onContentChange={handleContentChange}
             triggers={voiceTriggers}
             onCursorChange={setCursorPosition}
+            onPhraseHover={setHoveredPhrase}
             content={currentHTML}
           />
           <VoicesPanel focusedVoiceIndex={focusedVoiceIndex}>
-            {voices.map((voice, index) => (
-              <VoiceComment
-                key={index}
-                voice={voice.name}
-                text={voice.text}
-                icon={voice.icon}
-                color={voice.color}
-                onQuote={() => handleQuote(voice.name, voice.text)}
-              />
-            ))}
+            {voices.map((voice, index) => {
+              // @@@ Find the trigger phrase for this voice
+              const trigger = voiceTriggers.find(t =>
+                t.voice === voice.name && t.comment === voice.text
+              );
+              const isHovered = hoveredPhrase !== null && trigger !== undefined &&
+                hoveredPhrase.toLowerCase() === trigger.phrase.toLowerCase();
+
+              return (
+                <VoiceComment
+                  key={index}
+                  voice={voice.name}
+                  text={voice.text}
+                  icon={voice.icon}
+                  color={voice.color}
+                  onQuote={() => handleQuote(voice.name, voice.text)}
+                  isHovered={isHovered}
+                />
+              );
+            })}
           </VoicesPanel>
           <BinderRings />
         </div>
@@ -276,7 +299,7 @@ function App() {
           overflow: 'hidden'
         }}>
           <VoiceSettings
-            defaultVoices={voiceConfigs}
+            defaultVoices={defaultVoiceConfigs}
             onSave={setVoiceConfigs}
           />
         </div>
