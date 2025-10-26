@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { FaBrain, FaHeart, FaQuestion, FaCloud, FaTheaterMasks, FaEye, FaFistRaised, FaLightbulb, FaShieldAlt, FaWind, FaFire, FaCompass } from 'react-icons/fa';
 
 interface VoiceCommentProps {
@@ -35,18 +36,26 @@ const colorMap: Record<string, { background: string; border: string }> = {
 export default function VoiceComment({ voice, text, icon, color, onQuote, isHovered }: VoiceCommentProps) {
   const Icon = iconMap[icon as keyof typeof iconMap];
   const colors = colorMap[color] || { background: '#f0f0f0', border: '#ccc' };
+  const [isLocalHovered, setIsLocalHovered] = useState(false);
+
+  // Combined hover state (from parent highlighting OR local hover)
+  const showHoverEffect = isHovered || isLocalHovered;
 
   return (
     <div
-      className={`voice-comment ${isHovered ? 'hovered' : ''}`}
+      className={`voice-comment ${showHoverEffect ? 'hovered' : ''}`}
+      onMouseEnter={() => setIsLocalHovered(true)}
+      onMouseLeave={() => setIsLocalHovered(false)}
+      onClick={onQuote}
       style={{
         backgroundColor: colors.background,
         borderColor: colors.border,
         position: 'relative',
-        transform: isHovered ? 'scale(1.02)' : 'scale(1)',
-        boxShadow: isHovered ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
+        transform: showHoverEffect ? 'scale(1.02)' : 'scale(1)',
+        boxShadow: showHoverEffect ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
         transition: 'all 0.2s ease',
-        borderWidth: isHovered ? '2px' : '4px',
+        borderWidth: showHoverEffect ? '2px' : '4px',
+        cursor: onQuote ? 'pointer' : 'default',
       }}
     >
       <div className="voice-header">
@@ -54,42 +63,24 @@ export default function VoiceComment({ voice, text, icon, color, onQuote, isHove
         <strong>{voice}:</strong>
       </div>
       <div className="voice-text">{text}</div>
-      {onQuote && (
-        <button
-          onClick={onQuote}
+
+      {/* Show "Click to reply" hint on hover */}
+      {onQuote && isLocalHovered && (
+        <div
           style={{
             position: 'absolute',
-            top: 8,
+            bottom: 8,
             right: 8,
-            background: 'rgba(255, 255, 255, 0.9)',
-            border: 'none',
-            borderRadius: '50%',
-            width: 28,
-            height: 28,
-            fontSize: 18,
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            color: '#666',
-            opacity: 0,
-            transition: 'all 0.2s',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            fontSize: 11,
+            color: '#888',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            fontStyle: 'italic',
+            pointerEvents: 'none',
+            opacity: 0.8
           }}
-          onMouseEnter={e => {
-            e.currentTarget.style.opacity = '1';
-            e.currentTarget.style.transform = 'scale(1.1)';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.opacity = '0';
-            e.currentTarget.style.transform = 'scale(1)';
-          }}
-          title="引用到编辑器"
-          className="quote-button"
         >
-          "
-        </button>
+          Click to reply
+        </div>
       )}
     </div>
   );

@@ -22,31 +22,35 @@ export default function AnalysisView() {
       {/* Left sidebar - Page tabs */}
       <div style={{
         width: 200,
-        background: '#fffef9',
-        alignSelf: 'flex-start',
-        borderTop: '1px solid #d0c4b0',
-        borderBottom: '1px solid #d0c4b0'
+        background: 'transparent',
+        alignSelf: 'stretch',
+        paddingTop: '1rem',
+        borderRight: '1px solid #d0c4b0'
       }}>
         {pages.map(page => (
           <div
             key={page.id}
             onClick={() => setCurrentPage(page.id)}
             style={{
-              padding: '1rem 1.5rem',
+              padding: '0.75rem 1.5rem',
               cursor: 'pointer',
-              background: currentPage === page.id ? '#f5e6d3' : 'transparent',
-              borderLeft: currentPage === page.id ? '4px solid #8b7355' : '4px solid transparent',
+              background: currentPage === page.id ? 'rgba(44, 44, 44, 0.05)' : 'transparent',
+              borderLeft: currentPage === page.id ? '3px solid #333' : '3px solid transparent',
               fontWeight: currentPage === page.id ? 600 : 400,
-              color: currentPage === page.id ? '#333' : '#666',
-              transition: 'all 0.2s'
+              color: currentPage === page.id ? '#333' : '#888',
+              transition: 'all 0.2s',
+              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+              fontSize: 14
             }}
             onMouseEnter={e => {
               if (currentPage !== page.id) {
-                e.currentTarget.style.background = '#f9f5ed';
+                e.currentTarget.style.color = '#555';
+                e.currentTarget.style.background = 'rgba(44, 44, 44, 0.03)';
               }
             }}
             onMouseLeave={e => {
               if (currentPage !== page.id) {
+                e.currentTarget.style.color = '#888';
                 e.currentTarget.style.background = 'transparent';
               }
             }}
@@ -61,7 +65,7 @@ export default function AnalysisView() {
         flex: 1,
         padding: '2rem',
         overflowY: 'auto',
-        background: '#f5e6d3'
+        background: '#f8f0e6'
       }}>
         {currentPage === 0 && <Page0StickyNotes />}
         {currentPage === 1 && <PlaceholderPage title="行为模式分析" />}

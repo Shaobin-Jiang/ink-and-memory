@@ -2,6 +2,7 @@
 """Stateful voice analyzer that tracks comments across continuous writing."""
 
 from pathlib import Path
+from typing import Optional
 from pydantic import BaseModel, Field
 from polycli import PolyAgent
 from polycli.orchestration import pattern
@@ -20,7 +21,7 @@ class VoiceAnalysis(BaseModel):
     voices: list[VoiceTrigger] = Field(description="Detected voice triggers")
 
 class SingleVoiceAnalysis(BaseModel):
-    voice: VoiceTrigger | None = Field(description="Single voice trigger", default=None)
+    voice: Optional[VoiceTrigger] = Field(description="Single voice trigger", default=None)
 
 class StatefulVoiceAnalyzer:
     """
@@ -120,16 +121,16 @@ class StatefulVoiceAnalyzer:
         return filtered
 
     @pattern
-    def analyze(self, agent: PolyAgent, text: str, voices: dict = None) -> list[dict]:
+    def analyze(self, agent: PolyAgent, text: str, voices: dict = None) -> dict:
         """
-        Analyze text and return ALL comments (existing + new).
+        Analyze text and return ALL comments (existing + new) plus metadata.
 
         Args:
             agent: PolyAgent instance
             text: Current text
 
         Returns:
-            Complete list of all comments
+            Dict with 'voices' (complete list) and 'new_voices_added' (count of new voices from this LLM call)
         """
         print(f"\n{'='*60}")
         print(f"📊 Stateful Analysis")
@@ -146,7 +147,7 @@ class StatefulVoiceAnalyzer:
         # Step 2: Check if we need new analysis
         if len(text.strip()) < config.MIN_TEXT_LENGTH:
             print("⏭️  Text too short, returning existing comments")
-            return self.comments
+            return {"voices": self.comments, "new_voices_added": 0}
 
         # @@@ Removed debouncing - allow multiple LLM calls on same text
         # This enables energy pool to trigger multiple times and get different comments
@@ -154,8 +155,10 @@ class StatefulVoiceAnalyzer:
 
         # Step 3: Build prompt with existing comments
         voice_archetypes = voices or config.VOICE_ARCHETYPES
+        # @@@ Use user-defined 'name' (e.g., "吕布") instead of key (e.g., "Composure")
+        # This prevents LLM from hallucinating Disco Elysium characters
         voice_list = "\n".join([
-            f"- {name} ({v['icon']}, {v['color']}): {v['tagline']}"
+            f"- {v.get('name', name)} ({v['icon']}, {v['color']}): {v['tagline']}"
             for name, v in voice_archetypes.items()
         ])
 
@@ -210,25 +213,24 @@ class StatefulVoiceAnalyzer:
                         existing_summary += f"  \"{full_sentence}\"\n\n"
                 existing_summary += "👉 Focus your analysis on NEW/UNCOMMENTED sentences only!\n"
 
-        prompt = f"""You are analyzing internal dialogue using the voice system from Disco Elysium.
-
-In Disco Elysium, thoughts manifest as distinct inner voices - each representing a cognitive skill with its own personality and perspective. These voices interrupt, comment on, and debate each other as the protagonist thinks.
+        prompt = f"""You are analyzing internal dialogue as distinct inner voice personas.
 
 Analyze this text and identify NEW voices that want to comment:
 
 "{text}"
 
-Available voice archetypes:
+Available voice personas (THESE ARE THE ONLY VOICES YOU CAN USE - DO NOT CREATE NEW ONES):
 {voice_list}
 {existing_summary}
 
 For each NEW voice you detect:
-1. Extract a SHORT phrase that triggered it (word-for-word from the text)
+1. Extract a SHORT phrase that triggered it (**MUST be EXACT verbatim text from the user's writing, character-by-character match**)
    - The phrase should be SMALL - typically 2-6 words, the most essential/striking part
    - This phrase will be HIGHLIGHTED in the UI - keep it concise!
    - ✅ Good examples: "contemplative walk", "thinking about meaning", "life and death"
    - ❌ Bad examples: (whole sentences, too long, not focused)
-2. Choose the matching voice archetype
+   - **CRITICAL: The phrase MUST exist EXACTLY as written in the text. Do not paraphrase, rearrange, or modify ANY characters.**
+2. Choose the matching voice persona **FROM THE AVAILABLE LIST ABOVE ONLY**
 3. Write what this voice is saying (as if the voice itself is speaking)
 4. Use the voice's designated icon and color
 
@@ -237,11 +239,12 @@ CRITICAL DISTINCTION:
 - **Sentence** = The occupation boundary (you can't comment anywhere else in that sentence)
 - Even though your phrase is short, it occupies the ENTIRE sentence it appears in
 
-IMPORTANT:
+STRICT RULES:
 - Maximum {config.MAX_VOICES} NEW voices
+- **DO NOT CREATE OR INVENT NEW VOICE NAMES** - Only use the exact voice names from the available list above
 - **It's perfectly fine to return NO comment (null) if nothing is worth commenting on**
 - Only identify clearly present voices - quality over quantity
-- Phrase must be verbatim from text and KEEP IT SHORT (2-6 words typical)
+- **Phrase MUST be EXACT verbatim substring from text** (character-by-character match, no changes allowed)
 - Each voice should be distinct
 - DO NOT comment on parts that already have comments
 - Avoid commenting too close to existing comments
@@ -273,7 +276,7 @@ IMPORTANT:
 
         if not result.is_success or not result.has_data():
             print("❌ LLM failed, returning existing comments")
-            return self.comments
+            return {"voices": self.comments, "new_voices_added": 0}
 
         # Extract voices based on schema type
         if config.SINGLE_COMMENT_MODE:
@@ -284,14 +287,25 @@ IMPORTANT:
 
         print(f"✅ LLM returned {len(new_voices)} new comments")
 
-        # @@@ Override LLM's icon/color with actual config values, and use user-friendly name
+        # @@@ Build name → key mapping (e.g., "吕布" → "Composure")
+        # LLM now returns user-defined names, we need to find the corresponding key
+        name_to_key = {}
+        for key, v in voice_archetypes.items():
+            user_name = v.get("name", key)
+            name_to_key[user_name] = key
+
+        # @@@ Override LLM's icon/color with actual config values
+        # LLM returns user-defined name (e.g., "吕布"), we map back to key (e.g., "Composure")
         for v in new_voices:
-            if v and v.get("voice") in voice_archetypes:
-                archetype_key = v["voice"]
-                v["icon"] = voice_archetypes[archetype_key]["icon"]
-                v["color"] = voice_archetypes[archetype_key]["color"]
-                # Replace key with user-friendly name (e.g., "Composure" -> "另一个我")
-                v["voice"] = voice_archetypes[archetype_key].get("name", archetype_key)
+            if v:
+                llm_voice_name = v.get("voice")
+                # Find the key for this name
+                archetype_key = name_to_key.get(llm_voice_name)
+                if archetype_key and archetype_key in voice_archetypes:
+                    v["icon"] = voice_archetypes[archetype_key]["icon"]
+                    v["color"] = voice_archetypes[archetype_key]["color"]
+                    # Keep the user-defined name (already correct from LLM)
+                    v["voice"] = llm_voice_name
 
         # Step 4: Enforce density rules
         filtered_voices = self._enforce_density(new_voices, text)
@@ -306,7 +320,11 @@ IMPORTANT:
             print(f"   {i+1}. {c['voice']}: \"{c['phrase'][:30]}...\"")
         print(f"{'='*60}\n")
 
-        return self.comments
+        # @@@ Return both voices and metadata about new voices added
+        return {
+            "voices": self.comments,
+            "new_voices_added": len(filtered_voices)
+        }
 
 # @@@ Multi-user support - Session-based storage
 # Each user gets their own analyzer instance, keyed by session_id
@@ -343,8 +361,12 @@ def get_analyzer(session_id: str) -> StatefulVoiceAnalyzer:
 
     return _user_analyzers[session_id]
 
-def analyze_stateful(agent: PolyAgent, text: str, session_id: str, voices: dict = None) -> list[dict]:
-    """Analyze text using session-isolated analyzer."""
+def analyze_stateful(agent: PolyAgent, text: str, session_id: str, voices: dict = None) -> dict:
+    """Analyze text using session-isolated analyzer.
+
+    Returns:
+        Dict with 'voices' (list of all comments) and 'new_voices_added' (count of new voices from this LLM call)
+    """
     # Cleanup stale sessions before processing
     cleanup_stale_sessions()
 

@@ -16,12 +16,12 @@
 
 .book-interface {
   position: fixed;
-  top: 60px;
+  top: 48px;
   left: 0;
   right: 0;
   bottom: 0;
   display: flex;
-  background-color: #f5e6d3;
+  background-color: #f8f0e6;
   padding: 1rem 2rem 2rem 2rem;
   gap: 2rem;
   box-sizing: border-box;
@@ -100,7 +100,8 @@
   font-size: 1.2rem;
   line-height: 1.8;
   font-family: 'Excalifont', 'Xiaolai', 'Georgia', serif;
-  color: #333;
+  color: #333 !important;
+  background: #fffef9 !important;
   outline: none;
   box-sizing: border-box;
   cursor: text;
@@ -116,10 +117,15 @@
 
 .editable-text-area .ProseMirror p {
   margin: 0.5rem 0;
+  color: #333 !important;
 }
 
 .editable-text-area .ProseMirror p:first-child {
   margin-top: 0;
+}
+
+.editable-text-area .ProseMirror * {
+  color: inherit !important;
 }
 
 /* Placeholder styling */
@@ -203,7 +209,7 @@
   width: var(--hole-diameter);
   height: var(--hole-diameter);
   border-radius: 50%;
-  background: #f5e6d3;
+  background: #f8f0e6;
   z-index: 102;
 }
 

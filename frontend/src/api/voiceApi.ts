@@ -22,14 +22,17 @@ interface StatusResponse {
   exec_id: string;
   status: 'running' | 'completed' | 'failed';
   result?: {
-    voices: Array<{
+    voices?: Array<{
       phrase: string;
       voice: string;
       comment: string;
       icon: string;
       color: string;
     }>;
-    status: string;
+    new_voices_added?: number;  // @@@ Number of new voices from this LLM call
+    status?: string;
+    response?: string;  // For chat responses
+    voice_name?: string;  // For chat responses
   };
   error?: string;
 }
@@ -94,10 +97,56 @@ export async function getAnalysisResult(exec_id: string): Promise<StatusResponse
 }
 
 /**
- * Analyze text and return voices (all-in-one)
+ * Analyze text and return voices with metadata (all-in-one)
  */
 export async function analyzeText(text: string, sessionId: string, voices?: any) {
   const exec_id = await triggerAnalysis(text, sessionId, voices);
   const result = await getAnalysisResult(exec_id);
-  return result?.voices || [];
+  // @@@ Return both voices and new_voices_added for energy refund mechanism
+  return {
+    voices: result?.voices || [],
+    new_voices_added: result?.new_voices_added ?? 0
+  };
+}
+
+/**
+ * Chat with a voice persona
+ */
+export async function chatWithVoice(
+  voiceName: string,
+  voiceConfig: any,
+  conversationHistory: Array<{ role: string; content: string }>,
+  userMessage: string,
+  originalText?: string
+): Promise<string> {
+  console.log('💬 Sending chat request to backend...');
+
+  // Trigger chat session
+  const response = await fetch(`${API_BASE}/api/trigger`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session_id: 'chat_with_voice',
+      params: {
+        voice_name: voiceName,
+        voice_config: voiceConfig,
+        conversation_history: conversationHistory,
+        user_message: userMessage,
+        original_text: originalText || ''
+      }
+    })
+  });
+
+  const data: TriggerResponse = await response.json();
+  if (!data.success) {
+    throw new Error('Failed to trigger chat');
+  }
+
+  console.log('✅ Chat triggered, exec_id:', data.exec_id);
+
+  // Poll for result
+  const result = await getAnalysisResult(data.exec_id);
+  console.log('✅ Got chat response:', result);
+
+  return result?.response || 'Sorry, I could not respond.';
 }

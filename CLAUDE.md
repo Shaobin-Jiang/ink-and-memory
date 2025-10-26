@@ -182,6 +182,22 @@ Create `backend/models.json`:
 - Chinese comma (，): 0 weight (ignored)
 - Other characters: 1 weight
 
+**@@@ Quote Weight Hack (non-obvious):**
+When a user quotes a voice comment (via the quote button), the quoted text gets inserted into the editor and would normally be counted as new text, triggering unwanted energy accumulation.
+
+**Solution** (`App.tsx:241-244`):
+```typescript
+setTimeout(() => {
+  lastPollWeightRef.current = getWeightedLength(currentTextRef.current);
+  console.log(`📝 Quote inserted, updated baseline weight to ${lastPollWeightRef.current}`);
+}, 0);
+```
+
+After inserting a quote, we immediately update `lastPollWeightRef` to include the quote's weight. This "moves the baseline forward" so the next polling cycle sees no weight change from the quote. The `setTimeout(..., 0)` ensures we wait for the editor's `handleTextChange` to update `currentTextRef.current` first.
+
+Without this hack: Quote inserted → next poll sees +50 weight → accumulates 50 energy → unwanted analysis
+With this hack: Quote inserted → baseline updated → next poll sees 0 weight change → no energy accumulated ✅
+
 ### Stateful Voice Analysis
 - **Location**: `backend/stateful_analyzer.py`
 - **Features**:

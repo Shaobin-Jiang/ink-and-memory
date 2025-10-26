@@ -8,6 +8,7 @@ import BinderRings from './components/BinderRings'
 import VoiceSettings from './components/VoiceSettings'
 import CalendarView from './components/CalendarView'
 import AnalysisView from './components/AnalysisView'
+import AboutView from './components/AboutView'
 import LeftSidebar from './components/LeftSidebar'
 import type { VoiceTrigger } from './extensions/VoiceHighlight'
 import type { VoiceConfig } from './types/voice'
@@ -41,8 +42,9 @@ function App() {
 
   // @@@ Version logging and initialize default voices from backend
   useEffect(() => {
-    console.log('🎭 Ink & Memory - Version: v1.2.0-energy-pool');
+    console.log('🎭 Ink & Memory - Version: v1.2.1-energy-refund');
     console.log('⚡ Energy pool trigger: accumulate weight changes, trigger at 40 energy');
+    console.log('♻️  Energy refund: if LLM returns no voices, refund 20 energy');
     console.log('📐 Weights: CJK=2, punctuation(.!?。！？，\\n)=4, other=1');
     console.log('🔒 Single-threaded: max 1 backend request at a time');
 
@@ -67,7 +69,7 @@ function App() {
     });
   }, [sessionId]);
 
-  const [currentView, setCurrentView] = useState<'writing' | 'settings' | 'calendar' | 'analysis'>('writing');
+  const [currentView, setCurrentView] = useState<'writing' | 'settings' | 'calendar' | 'analysis' | 'about'>('writing');
   const [voices, setVoices] = useState<Voice[]>([]);
   const [voiceTriggers, setVoiceTriggers] = useState<VoiceTrigger[]>([]);
   const [voiceConfigs, setVoiceConfigs] = useState<Record<string, VoiceConfig>>({});
@@ -77,6 +79,7 @@ function App() {
   const [cursorPosition, setCursorPosition] = useState<number>(0);
   const [focusedVoiceIndex, setFocusedVoiceIndex] = useState<number | undefined>(undefined);
   const [hoveredPhrase, setHoveredPhrase] = useState<string | null>(null);
+  const [quotedComments, setQuotedComments] = useState<Array<{ voiceName: string; comment: string }>>([]);
   const currentTextRef = useRef<string>('');
   const isAnalyzingRef = useRef<boolean>(false);
   const editorRef = useRef<EditableTextAreaRef>(null);
@@ -157,8 +160,13 @@ function App() {
       return;
     }
 
+    // @@@ Use text without quotes for weight calculation
+    // Atomic quote widgets are automatically excluded
+    const textForWeighting = editorRef.current?.getTextWithoutQuotes() || currentTextRef.current;
+    const currentWeight = getWeightedLength(textForWeighting);
+
+    // Still use full text for backend analysis
     const currentTextValue = currentTextRef.current;
-    const currentWeight = getWeightedLength(currentTextValue);
 
     // Calculate weight difference since last poll
     const weightDiff = currentWeight - lastPollWeightRef.current;
@@ -198,11 +206,18 @@ function App() {
         }
       }
       console.log(`📤 Sending to backend:`, backendFormat);
-      const backendVoices = await analyzeText(currentTextValue, sessionId, backendFormat);
-      console.log(`✅ Got ${backendVoices.length} voices from backend`);
+      const result = await analyzeText(currentTextValue, sessionId, backendFormat);
+      console.log(`✅ Got ${result.voices.length} total voices (${result.new_voices_added} new from this LLM call)`);
 
-      setVoiceTriggers(backendVoices);
-      detectVoices(currentTextValue, backendVoices);
+      // @@@ Energy refund mechanism - if LLM returns no NEW comments, refund 20 energy
+      // This prevents wasting energy when nothing interesting is detected
+      if (result.new_voices_added === 0) {
+        energyRef.current += 20;
+        console.log(`♻️  No new voices detected, refunded 20 energy → ${energyRef.current} total`);
+      }
+
+      setVoiceTriggers(result.voices);
+      detectVoices(currentTextValue, result.voices);
     } catch (error) {
       console.error('❌ Voice analysis failed:', error);
     } finally {
@@ -210,12 +225,27 @@ function App() {
     }
   };
 
+  // @@@ Reset weight baseline when switching back to writing view
+  // Prevents energy accumulation from "seeing" the full text again
+  useEffect(() => {
+    if (currentView === 'writing' && editorRef.current) {
+      const textForWeighting = editorRef.current.getTextWithoutQuotes() || currentTextRef.current;
+      lastPollWeightRef.current = getWeightedLength(textForWeighting);
+      console.log(`🔄 Switched to writing view, reset baseline weight to ${lastPollWeightRef.current}`);
+    }
+  }, [currentView]);
+
   // @@@ Polling strategy - Check every 5 seconds (stable interval)
   // Must include voiceConfigs in deps so interval uses latest config
+  // Only run when in writing view to prevent energy accumulation when switched away
   useEffect(() => {
+    if (currentView !== 'writing') {
+      return;
+    }
+
     const interval = setInterval(analyzeIfNeeded, 5000);
     return () => clearInterval(interval);
-  }, [voiceConfigs]);
+  }, [voiceConfigs, currentView]);
 
   const handleTextChange = (newText: string) => {
     setCurrentText(newText);
@@ -227,12 +257,30 @@ function App() {
 
   const handleContentChange = (newHTML: string) => {
     setCurrentHTML(newHTML);
+
+    // @@@ Update quoted comments list whenever content changes
+    if (editorRef.current?.getQuotedComments) {
+      setQuotedComments(editorRef.current.getQuotedComments());
+    }
   };
 
   const handleQuote = (voiceName: string, comment: string) => {
-    // Format as HTML blockquote for TipTap
-    const quoteHTML = `<blockquote><strong>${voiceName}</strong>: ${comment}</blockquote><p></p>`;
-    editorRef.current?.insertText(quoteHTML);
+    // @@@ Insert atomic voice quote widget
+    // Quotes are now special nodes that are automatically excluded from weight calculation
+    if (editorRef.current?.insertVoiceQuote) {
+      // Get voice config for this voice (for chat context)
+      const voiceConfig = voiceConfigs[voiceName] || {
+        tagline: `${voiceName} voice`
+      };
+
+      editorRef.current.insertVoiceQuote(voiceName, comment, {
+        tagline: voiceConfig.systemPrompt,
+        icon: voiceConfig.icon,
+        color: voiceConfig.color
+      });
+    } else {
+      console.error('insertVoiceQuote method not available on editorRef');
+    }
   };
 
   // @@@ Re-detect voices when triggers change
@@ -270,26 +318,33 @@ function App() {
             content={currentHTML}
           />
           <VoicesPanel focusedVoiceIndex={focusedVoiceIndex}>
-            {voices.map((voice, index) => {
-              // @@@ Find the trigger phrase for this voice
-              const trigger = voiceTriggers.find(t =>
-                t.voice === voice.name && t.comment === voice.text
-              );
-              const isHovered = hoveredPhrase !== null && trigger !== undefined &&
-                hoveredPhrase.toLowerCase() === trigger.phrase.toLowerCase();
+            {voices
+              .filter(voice => {
+                // @@@ Hide comments that are already quoted as widgets
+                return !quotedComments.some(
+                  quoted => quoted.voiceName === voice.name && quoted.comment === voice.text
+                );
+              })
+              .map((voice, index) => {
+                // @@@ Find the trigger phrase for this voice
+                const trigger = voiceTriggers.find(t =>
+                  t.voice === voice.name && t.comment === voice.text
+                );
+                const isHovered = hoveredPhrase !== null && trigger !== undefined &&
+                  hoveredPhrase.toLowerCase() === trigger.phrase.toLowerCase();
 
-              return (
-                <VoiceComment
-                  key={index}
-                  voice={voice.name}
-                  text={voice.text}
-                  icon={voice.icon}
-                  color={voice.color}
-                  onQuote={() => handleQuote(voice.name, voice.text)}
-                  isHovered={isHovered}
-                />
-              );
-            })}
+                return (
+                  <VoiceComment
+                    key={index}
+                    voice={voice.name}
+                    text={voice.text}
+                    icon={voice.icon}
+                    color={voice.color}
+                    onQuote={() => handleQuote(voice.name, voice.text)}
+                    isHovered={isHovered}
+                  />
+                );
+              })}
           </VoicesPanel>
           <BinderRings />
         </div>
@@ -297,11 +352,11 @@ function App() {
       {currentView === 'settings' && (
         <div style={{
           position: 'fixed',
-          top: 60,
+          top: 48,
           left: 0,
           right: 0,
           bottom: 0,
-          background: '#f5e6d3',
+          background: '#f8f0e6',
           display: 'flex',
           overflow: 'hidden'
         }}>
@@ -314,11 +369,11 @@ function App() {
       {currentView === 'calendar' && (
         <div style={{
           position: 'fixed',
-          top: 60,
+          top: 48,
           left: 0,
           right: 0,
           bottom: 0,
-          background: '#f5e6d3',
+          background: '#f8f0e6',
           display: 'flex',
           overflow: 'hidden'
         }}>
@@ -328,15 +383,29 @@ function App() {
       {currentView === 'analysis' && (
         <div style={{
           position: 'fixed',
-          top: 60,
+          top: 48,
           left: 0,
           right: 0,
           bottom: 0,
-          background: '#f5e6d3',
+          background: '#f8f0e6',
           display: 'flex',
           overflow: 'hidden'
         }}>
           <AnalysisView />
+        </div>
+      )}
+      {currentView === 'about' && (
+        <div style={{
+          position: 'fixed',
+          top: 48,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: '#f8f0e6',
+          display: 'flex',
+          overflow: 'hidden'
+        }}>
+          <AboutView />
         </div>
       )}
     </>

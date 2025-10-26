@@ -1,7 +1,7 @@
 """Voice archetypes configuration - inspired by Disco Elysium."""
 
 # Model to use for voice analysis
-MODEL = "gpt-4o-dou"
+MODEL = "claude-haiku-4.5"
 
 # @@@ Sparsity control
 MAX_VOICES = 5

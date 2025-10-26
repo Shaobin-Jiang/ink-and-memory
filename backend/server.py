@@ -8,6 +8,90 @@ from stateful_analyzer import analyze_stateful
 import config
 
 @session_def(
+    name="Chat with Voice",
+    description="Have a conversation with a specific inner voice persona",
+    params={
+        "voice_name": {"type": "str"},
+        "voice_config": {"type": "dict"},
+        "conversation_history": {"type": "list"},
+        "user_message": {"type": "str"},
+        "original_text": {"type": "str"}
+    },
+    category="Chat"
+)
+def chat_with_voice(voice_name: str, voice_config: dict, conversation_history: list, user_message: str, original_text: str = ""):
+    """
+    Chat with a specific voice persona.
+
+    Args:
+        voice_name: Name of the voice (e.g., "Logic", "Drama")
+        voice_config: Voice configuration with tagline, icon, color
+        conversation_history: Previous messages in the conversation
+        user_message: The user's new message
+
+    Returns:
+        Dictionary with assistant's response
+    """
+    print(f"\n{'='*60}")
+    print(f"💬 chat_with_voice() called")
+    print(f"   Voice: {voice_name}")
+    print(f"   User message: {user_message}")
+    print(f"   History length: {len(conversation_history)}")
+    print(f"{'='*60}\n")
+
+    agent = PolyAgent(id=f"voice-chat-{voice_name.lower()}")
+
+    # @@@ Ensure voice_config is a dict (defensive check)
+    if not isinstance(voice_config, dict):
+        print(f"⚠️  voice_config is not a dict: {type(voice_config)}, using default")
+        voice_config = {"tagline": f"{voice_name} voice from Disco Elysium"}
+
+    # Build system prompt for this voice
+    system_prompt = f"""You are {voice_name}, an inner voice archetype from Disco Elysium.
+
+Your character: {voice_config.get('tagline', '')}
+
+Respond in character as {voice_name}. Be concise (1-3 sentences). Stay true to your archetype.
+Use the conversation context but focus on your unique perspective."""
+
+    # @@@ Add original writing area text if available
+    if original_text and original_text.strip():
+        system_prompt += f"""
+
+Context: The user is writing this text:
+---
+{original_text.strip()}
+---
+
+Your initial comment was about this text. Keep this context in mind when responding to the user's questions."""
+
+    # Build full prompt with conversation history
+    prompt = system_prompt + "\n\nConversation history:\n"
+
+    # Add conversation history
+    for msg in conversation_history:
+        role_label = "User" if msg["role"] == "user" else voice_name
+        prompt += f"\n{role_label}: {msg['content']}"
+
+    # Add user's new message
+    prompt += f"\n\nUser: {user_message}\n\n{voice_name}:"
+
+    # Get response from LLM
+    result = agent.run(prompt, model="gpt-4o-dou", cli="no-tools", tracked=True)
+
+    if not result.is_success or not result.content:
+        response = "..."
+    else:
+        response = result.content
+
+    print(f"✅ Got response: {response[:100]}...")
+
+    return {
+        "response": response,
+        "voice_name": voice_name
+    }
+
+@session_def(
     name="Analyze Voices",
     description="Detect inner voices in text using Disco Elysium archetypes",
     params={
@@ -39,14 +123,19 @@ def analyze_text(text: str, session_id: str, voices: dict = None):
 
     print("Calling analyze_stateful pattern...")
     custom_voices = voices or config.VOICE_ARCHETYPES
-    result_voices = analyze_stateful(agent, text, session_id, custom_voices)
+    analysis_result = analyze_stateful(agent, text, session_id, custom_voices)
 
-    print(f"✅ Got {len(result_voices)} voices")
+    # @@@ analyze_stateful now returns dict with 'voices' and 'new_voices_added'
+    result_voices = analysis_result["voices"]
+    new_voices_added = analysis_result["new_voices_added"]
+
+    print(f"✅ Got {len(result_voices)} total voices ({new_voices_added} new from this LLM call)")
     for i, v in enumerate(result_voices):
         print(f"   {i+1}. {v.get('voice', 'unknown')}: {v.get('comment', '')[:50]}...")
 
     result = {
         "voices": result_voices,
+        "new_voices_added": new_voices_added,  # Frontend uses this for energy refund
         "status": "completed",
         "text_length": len(text)
     }

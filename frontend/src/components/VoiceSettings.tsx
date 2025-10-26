@@ -109,9 +109,8 @@ export default function VoiceSettings({ defaultVoices, onSave }: Props) {
   };
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#f5e6d3', overflow: 'hidden' }}>
-      <div style={{ padding: '20px 32px', borderBottom: '1px solid #d0c4b0', background: '#f5e6d3', flexShrink: 0 }}>
-        <h2 style={{ margin: '0 0 16px 0', color: '#333', fontSize: 24 }}>Voice Settings</h2>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#f8f0e6', overflow: 'hidden' }}>
+      <div style={{ padding: '20px 32px', background: '#f8f0e6', flexShrink: 0 }}>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={handleAdd} style={{ padding: '6px 12px', border: '1px solid #ccc', background: '#fffef9', borderRadius: 4, cursor: 'pointer' }}>+ Add</button>
           <button onClick={handleImport} style={{ padding: '6px 12px', border: '1px solid #ccc', background: '#fffef9', borderRadius: 4, cursor: 'pointer' }}>Import</button>
@@ -134,7 +133,7 @@ export default function VoiceSettings({ defaultVoices, onSave }: Props) {
           </button>
         </div>
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: 32, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 20, alignContent: 'start', background: '#f5e6d3' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 32, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 20, alignContent: 'start', background: '#f8f0e6' }}>
         {Object.entries(voices).map(([id, voice]) => (
           <div key={id} style={{ padding: 12, border: '1px solid #d0c4b0', borderRadius: 4, position: 'relative', background: '#fffef9' }}>
             <button
