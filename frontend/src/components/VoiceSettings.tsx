@@ -73,7 +73,7 @@ export default function VoiceSettings({ defaultVoices, onSave }: Props) {
   };
 
   const handleRename = (id: string, newName: string) => {
-    // Just update the name, keep the ID stable to avoid React re-renders
+    // Just update the name, keep the ID stable
     setVoices({ ...voices, [id]: { ...voices[id], name: newName } });
   };
 
@@ -155,6 +155,7 @@ export default function VoiceSettings({ defaultVoices, onSave }: Props) {
                   type="text"
                   value={voice.name}
                   onChange={e => handleRename(id, e.target.value)}
+                  placeholder="Voice Name"
                   style={{ flex: 1, border: 'none', borderBottom: '1px solid #d0c4b0', fontSize: 14, fontWeight: 'bold', background: 'transparent', padding: '4px 0' }}
                 />
               </label>

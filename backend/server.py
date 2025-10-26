@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Voice analysis server using PolyCLI Session Registry."""
+"""Stateless voice analysis server - no state tracking, just returns new comments."""
 
 import time
 from polycli.orchestration.session_registry import session_def, get_registry
 from polycli import PolyAgent
-from stateful_analyzer import analyze_stateful
+from stateless_analyzer import analyze_stateless
 import config
 
 @session_def(
@@ -28,6 +28,7 @@ def chat_with_voice(voice_name: str, voice_config: dict, conversation_history: l
         voice_config: Voice configuration with tagline, icon, color
         conversation_history: Previous messages in the conversation
         user_message: The user's new message
+        original_text: The user's original writing text
 
     Returns:
         Dictionary with assistant's response
@@ -41,7 +42,7 @@ def chat_with_voice(voice_name: str, voice_config: dict, conversation_history: l
 
     agent = PolyAgent(id=f"voice-chat-{voice_name.lower()}")
 
-    # @@@ Ensure voice_config is a dict (defensive check)
+    # Ensure voice_config is a dict
     if not isinstance(voice_config, dict):
         print(f"⚠️  voice_config is not a dict: {type(voice_config)}, using default")
         voice_config = {"tagline": f"{voice_name} voice from Disco Elysium"}
@@ -54,7 +55,7 @@ Your character: {voice_config.get('tagline', '')}
 Respond in character as {voice_name}. Be concise (1-3 sentences). Stay true to your archetype.
 Use the conversation context but focus on your unique perspective."""
 
-    # @@@ Add original writing area text if available
+    # Add original writing area text if available
     if original_text and original_text.strip():
         system_prompt += f"""
 
@@ -93,68 +94,57 @@ Your initial comment was about this text. Keep this context in mind when respond
 
 @session_def(
     name="Analyze Voices",
-    description="Detect inner voices in text using Disco Elysium archetypes",
+    description="Get one new voice comment for text",
     params={
         "text": {"type": "str"},
         "session_id": {"type": "str"},
-        "voices": {"type": "dict"}
+        "voices": {"type": "dict"},
+        "applied_comments": {"type": "list"}
     },
     category="Analysis"
 )
-def analyze_text(text: str, session_id: str, voices: dict = None):
+def analyze_text(text: str, session_id: str, voices: dict = None, applied_comments: list = None):
     """
-    Analyze text and detect inner voice triggers.
+    Stateless analysis - returns ONE new comment based on text and applied comments.
 
     Args:
-        text: Text to analyze
+        text: Text to analyze (should be complete sentences only)
+        session_id: Session ID (for future use)
+        voices: Voice configuration
+        applied_comments: List of already applied comments (to avoid duplicates)
 
     Returns:
-        Dictionary with voices array and status
+        Dictionary with single new voice (or empty list)
     """
     print(f"\n{'='*60}")
-    print(f"🎯 analyze_text() called")
-    print(f"   Session ID: {session_id}")
-    print(f"   Text length: {len(text)}")
-    print(f"   Text preview: {text[:100]}...")
+    print(f"🎯 Stateless analyze_text() called")
+    print(f"   Text: {text[:100]}...")
+    print(f"   Applied comments: {len(applied_comments or [])}")
     print(f"{'='*60}\n")
 
-    print("Creating PolyAgent...")
     agent = PolyAgent(id="voice-analyzer")
 
-    print("Calling analyze_stateful pattern...")
-    custom_voices = voices or config.VOICE_ARCHETYPES
-    analysis_result = analyze_stateful(agent, text, session_id, custom_voices)
+    # Get voices from stateless analyzer
+    result = analyze_stateless(agent, text, applied_comments or [], voices)
 
-    # @@@ analyze_stateful now returns dict with 'voices' and 'new_voices_added'
-    result_voices = analysis_result["voices"]
-    new_voices_added = analysis_result["new_voices_added"]
+    print(f"✅ Returning {result['new_voices_added']} new voice(s)")
 
-    print(f"✅ Got {len(result_voices)} total voices ({new_voices_added} new from this LLM call)")
-    for i, v in enumerate(result_voices):
-        print(f"   {i+1}. {v.get('voice', 'unknown')}: {v.get('comment', '')[:50]}...")
-
-    result = {
-        "voices": result_voices,
-        "new_voices_added": new_voices_added,  # Frontend uses this for energy refund
-        "status": "completed",
-        "text_length": len(text)
+    return {
+        "voices": result["voices"],
+        "new_voices_added": result["new_voices_added"],
+        "status": "completed"
     }
 
-    print(f"Returning result: {result}")
-    print(f"{'='*60}\n")
-
-    return result
-
 if __name__ == "__main__":
-    # Get the global registry (session auto-registered via decorator)
+    # Get the global registry
     registry = get_registry()
 
     # Start the control panel
     print("\n" + "="*60)
-    print("🎭 Voice Analysis Server")
+    print("🎭 Stateless Voice Analysis Server")
     print("="*60)
 
-    # Monkey-patch the handler to add /api/default-voices endpoint
+    # Monkey-patch to add /api/default-voices endpoint
     server, thread = registry.serve_control_panel(port=8765)
 
     original_do_get = server.RequestHandlerClass.do_GET
@@ -174,10 +164,9 @@ if __name__ == "__main__":
 
     print("\n📚 Available endpoints:")
     print("  - POST /api/trigger")
-    print("    Body: {\"session_id\": \"analyze_text\", \"params\": {\"text\": \"...\"}}")
-    print("  - GET /api/sessions (list all sessions)")
-    print("  - GET /api/running (list running sessions)")
-    print("  - GET /api/status/{exec_id} (get session status)")
+    print("    Body: {\"session_id\": \"analyze_text\", \"params\": {\"text\": \"...\", \"applied_comments\": [...]}}")
+    print("    Body: {\"session_id\": \"chat_with_voice\", \"params\": {\"voice_name\": \"...\", \"user_message\": \"...\", ...}}")
+    print("  - GET /api/default-voices")
     print("\n" + "="*60 + "\n")
 
     # Keep server running
