@@ -191,6 +191,17 @@
   }
 }
 
+@keyframes slideInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px) translateY(-50%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) translateY(-50%);
+  }
+}
+
 /* Binder rings */
 .binder-ring {
   position: absolute;
@@ -268,4 +279,26 @@
 
 .voice-highlight-purple {
   background: url(https://s2.svgbox.net/pen-brushes.svg?ic=brush-5&color=ddb3ff);
+}
+
+/* Scrollbar styling for simplified version */
+.writing-textarea::-webkit-scrollbar,
+.comments-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.writing-textarea::-webkit-scrollbar-track,
+.comments-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.writing-textarea::-webkit-scrollbar-thumb,
+.comments-panel::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+.writing-textarea::-webkit-scrollbar-thumb:hover,
+.comments-panel::-webkit-scrollbar-thumb:hover {
+  background: #999;
 }

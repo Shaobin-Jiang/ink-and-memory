@@ -47,7 +47,7 @@ scp -i ~/Codebase/serverManagement/keys/Jeffry.pem *.py \
 ssh -i ~/Codebase/serverManagement/keys/Jeffry.pem root@101.201.227.31 "
   tmux send-keys -t ink-and-memory:0 C-c
   sleep 2
-  tmux send-keys -t ink-and-memory:0 'cd /root/ink-and-memory/backend && source .venv/bin/activate && OPENAI_API_KEY=sk-yz0JLc7sGbCHnwam70Bc9e29Dc684bAe904102C95dF32fB1 OPENAI_BASE_URL=https://api.dou.chat/v1 python server.py' Enter
+  tmux send-keys -t ink-and-memory:0 'cd /root/ink-and-memory/backend && source .venv/bin/activate && python server.py' Enter
 "
 ```
 
@@ -115,9 +115,7 @@ const API_BASE = '/ink-and-memory';  // Production: nginx proxies to backend
 ```python
 # Uses PolyCLI session registry
 # Runs on port 8765
-# Environment variables required:
-# - OPENAI_API_KEY
-# - OPENAI_BASE_URL
+# Models configured via models.json
 ```
 
 ## 🔧 Development
@@ -152,18 +150,8 @@ python server.py
 
 ### API Configuration
 
-Create `backend/models.json`:
-```json
-{
-  "models": {
-    "gpt-4o-dou": {
-      "endpoint": "https://api.dou.chat/v1",
-      "api_key": "sk-yz0JLc7sGbCHnwam70Bc9e29Dc684bAe904102C95dF32fB1",
-      "model": "openai/chatgpt-4o-latest"
-    }
-  }
-}
-```
+Create `backend/models.json` with your API configuration.
+The backend uses PolyCLI's model configuration system.
 
 ## 📝 Key Features & Implementation
 

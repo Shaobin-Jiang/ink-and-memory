@@ -40,14 +40,14 @@ interface StatusResponse {
 /**
  * Trigger voice analysis session
  */
-export async function triggerAnalysis(text: string, sessionId: string, voices?: any): Promise<string> {
+export async function triggerAnalysis(text: string, sessionId: string, voices?: any, appliedComments?: any[]): Promise<string> {
   console.log('📤 Sending trigger request...');
   const response = await fetch(`${API_BASE}/api/trigger`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       session_id: 'analyze_text',
-      params: { text, session_id: sessionId, voices }
+      params: { text, session_id: sessionId, voices, applied_comments: appliedComments || [] }
     })
   });
 
@@ -99,8 +99,8 @@ export async function getAnalysisResult(exec_id: string): Promise<StatusResponse
 /**
  * Analyze text and return voices with metadata (all-in-one)
  */
-export async function analyzeText(text: string, sessionId: string, voices?: any) {
-  const exec_id = await triggerAnalysis(text, sessionId, voices);
+export async function analyzeText(text: string, sessionId: string, voices?: any, appliedComments?: any[]) {
+  const exec_id = await triggerAnalysis(text, sessionId, voices, appliedComments);
   const result = await getAnalysisResult(exec_id);
   // @@@ Return both voices and new_voices_added for energy refund mechanism
   return {
