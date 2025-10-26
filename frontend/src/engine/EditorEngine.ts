@@ -218,17 +218,49 @@ export class EditorEngine {
       const commentor = this.commentorWaitlist.pop()!;
 
       // Check if text still matches (current text starts with snapshot)
-      if (text.startsWith(commentor.textSnapshot)) {
-        // Apply commentor
-        commentor.appliedAt = Date.now();
-        this.state.commentors.push(commentor);
-        this.usedEnergy += this.threshold;
-        appliedAny = true;
-        console.log(`✅ Applied commentor: ${commentor.voice} on "${commentor.phrase}"`);
-        console.log(`   Energy: used ${this.usedEnergy}/${currentEnergy} (${currentEnergy - this.usedEnergy} remaining)`);
-      } else {
+      if (!text.startsWith(commentor.textSnapshot)) {
         console.log(`⏭️ Skipped outdated commentor: ${commentor.voice}`);
+        continue;
       }
+
+      // @@@ Check for overlap with existing highlights
+      const phraseIndex = text.toLowerCase().indexOf(commentor.phrase.toLowerCase());
+      if (phraseIndex === -1) {
+        console.log(`⏭️ Skipped commentor (phrase not found): ${commentor.voice}`);
+        continue;
+      }
+
+      const phraseStart = phraseIndex;
+      const phraseEnd = phraseIndex + commentor.phrase.length;
+
+      // Check overlap with all applied commentors
+      let hasOverlap = false;
+      for (const applied of this.state.commentors.filter(c => c.appliedAt)) {
+        const appliedIndex = text.toLowerCase().indexOf(applied.phrase.toLowerCase());
+        if (appliedIndex === -1) continue;
+
+        const appliedStart = appliedIndex;
+        const appliedEnd = appliedIndex + applied.phrase.length;
+
+        // Check if ranges overlap: [phraseStart, phraseEnd) overlaps with [appliedStart, appliedEnd)
+        if (phraseStart < appliedEnd && phraseEnd > appliedStart) {
+          hasOverlap = true;
+          console.log(`⚠️ Skipped overlapping commentor: "${commentor.phrase}" overlaps with "${applied.phrase}"`);
+          break;
+        }
+      }
+
+      if (hasOverlap) {
+        continue;
+      }
+
+      // Apply commentor
+      commentor.appliedAt = Date.now();
+      this.state.commentors.push(commentor);
+      this.usedEnergy += this.threshold;
+      appliedAny = true;
+      console.log(`✅ Applied commentor: ${commentor.voice} on "${commentor.phrase}"`);
+      console.log(`   Energy: used ${this.usedEnergy}/${currentEnergy} (${currentEnergy - this.usedEnergy} remaining)`);
     }
 
     if (appliedAny) {

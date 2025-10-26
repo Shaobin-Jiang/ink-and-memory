@@ -283,27 +283,12 @@ export default function App() {
   const [refsReady, setRefsReady] = useState(0);
   const refsReadyTriggered = useRef(false);
 
-  // @@@ Reset refs ready flag when returning to writing view and focus last text cell
+  // @@@ Reset refs ready flag when returning to writing view
   useEffect(() => {
     if (currentView === 'writing') {
       refsReadyTriggered.current = false;
-
-      // Auto-focus last text cell after a short delay to ensure DOM is ready
-      setTimeout(() => {
-        if (!state) return;
-        const lastTextCell = [...state.cells].reverse().find(c => c.type === 'text');
-        if (!lastTextCell) return;
-
-        const textarea = textareaRefs.current.get(lastTextCell.id);
-        if (textarea) {
-          textarea.focus();
-          // Move cursor to end
-          textarea.selectionStart = textarea.value.length;
-          textarea.selectionEnd = textarea.value.length;
-        }
-      }, 100);
     }
-  }, [currentView, state]);
+  }, [currentView]);
 
   // @@@ Fetch default voices from backend
   useEffect(() => {
@@ -947,7 +932,9 @@ export default function App() {
           display: 'flex',
           height: '100vh',
           paddingTop: isMobile ? '0' : '48px',
-          fontFamily: 'system-ui, -apple-system, sans-serif'
+          paddingBottom: '41px',  // @@@ Space for fixed stats bar at bottom
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          boxSizing: 'border-box'
         }}>
           {/* Left spacer for layout - hide on mobile */}
           {!isMobile && (
@@ -1038,7 +1025,8 @@ export default function App() {
                 flex: 1,
                 position: 'relative',
                 overflow: 'auto',
-                padding: '20px'
+                padding: '20px',
+                paddingBottom: '80px'  // Extra space for smooth scrolling to bottom
               }}>
                 <div style={{
                   position: 'relative',
@@ -1105,6 +1093,11 @@ export default function App() {
                             onClick={(e) => handleCursorChange(cell.id, e)}
                             onKeyUp={(e) => handleCursorChange(cell.id, e)}
                             onKeyDown={(e) => handleKeyDown(cell.id, e)}
+                            onFocus={(e) => {
+                              // @@@ Prevent browser from scrolling element into view on focus
+                              // This stops the "lift up" effect when clicking after scrolling
+                              e.preventDefault();
+                            }}
                             placeholder={idx === 0 ? "Start writing..." : "Continue writing..."}
                             style={{
                               width: '100%',
@@ -1153,18 +1146,30 @@ export default function App() {
                   const cellTextarea = textareaRefs.current.get(group.cellId);
                   if (!cellTextarea) return null;
 
-                  // Calculate position relative to this cell's textarea
-                  const cellRect = cellTextarea.getBoundingClientRect();
-                  const containerRect = containerRef.current?.getBoundingClientRect();
-                  if (!containerRect) return null;
+                  // @@@ Use offsetTop relative to the content container (with maxWidth: 600px)
+                  // This div is at line 1031 with position: relative
+                  const cellWrapper = cellTextarea.parentElement; // The div with position: relative
+                  if (!cellWrapper) return null;
 
-                  const containerPadding = parseFloat(window.getComputedStyle(cellTextarea.parentElement || cellTextarea).paddingLeft) || 20;
+                  const cellOffsetTop = cellWrapper.offsetTop;
+
+                  // @@@ Calculate line height from textarea styles
+                  const computedStyle = window.getComputedStyle(cellTextarea);
+                  const fontSize = parseFloat(computedStyle.fontSize) || 18;
+                  const lineHeightRatio = parseFloat(computedStyle.lineHeight) / fontSize || 1.8;
+                  const lineHeight = fontSize * lineHeightRatio;
+
+                  const containerPadding = parseFloat(window.getComputedStyle(cellWrapper.parentElement || cellWrapper).paddingLeft) || 20;
                   const gap = Math.max(30, window.innerWidth * 0.02);
                   const leftPosition = containerPadding + group.maxLineWidth + gap;
 
-                  // @@@ Position relative to cell's top, not global document
-                  // centerY is already relative to cell's top, so just add cell offset
-                  const topPosition = cellRect.top - containerRect.top + group.centerY;
+                  // @@@ Position using offsetTop (scroll-independent)
+                  // centerY is already relative to cell's top, so just add:
+                  // - cellOffsetTop: position relative to content container
+                  // - 20px: scroll container padding (line 1028)
+                  // - 24px: StateChooser marginBottom (line 1036)
+                  // - subtract 0.7 lineHeight: fine-tune vertical alignment
+                  const topPosition = cellOffsetTop + group.centerY + 20 + 24 - (lineHeight * 0.7);
 
                   return (
                     <CommentGroupCard
