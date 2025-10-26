@@ -16,7 +16,7 @@ class VoiceTrigger(BaseModel):
 class SingleVoiceAnalysis(BaseModel):
     voice: Optional[VoiceTrigger] = Field(description="Single voice trigger, or None if nothing to comment")
 
-def analyze_stateless(agent: PolyAgent, text: str, applied_comments: List[dict], voices: dict = None) -> dict:
+def analyze_stateless(agent: PolyAgent, text: str, applied_comments: List[dict], voices: dict = None, meta_prompt: str = "", state_prompt: str = "") -> dict:
     """
     Stateless analysis - receives applied comments, returns ONE new comment.
 
@@ -25,6 +25,8 @@ def analyze_stateless(agent: PolyAgent, text: str, applied_comments: List[dict],
         text: Text to analyze (completed sentences only)
         applied_comments: List of already applied comments (to avoid duplicates)
         voices: Voice configuration
+        meta_prompt: Additional instructions that apply to all voices
+        state_prompt: User's current emotional state prompt
 
     Returns:
         Dict with single new voice (or empty list if none)
@@ -75,6 +77,20 @@ RULES:
 - Phrase MUST be EXACT substring from text
 - Only comment on complete sentences (ending with .!?。！？)
 - Write in the SAME LANGUAGE as the text"""
+
+    # @@@ Add meta prompt if available
+    if meta_prompt and meta_prompt.strip():
+        prompt += f"""
+
+Additional instructions:
+{meta_prompt.strip()}"""
+
+    # @@@ Add state prompt if available
+    if state_prompt and state_prompt.strip():
+        prompt += f"""
+
+User's current state:
+{state_prompt.strip()}"""
 
     print("🤖 Calling LLM for one new comment...")
 

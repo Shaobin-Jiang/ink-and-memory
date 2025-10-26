@@ -5,3 +5,13 @@ export interface VoiceConfig {
   icon: string;
   color: string;
 }
+
+export interface UserState {
+  name: string;
+  prompt: string;
+}
+
+export interface StateConfig {
+  greeting: string;
+  states: Record<string, UserState>;
+}

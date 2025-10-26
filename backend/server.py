@@ -15,11 +15,13 @@ import config
         "voice_config": {"type": "dict"},
         "conversation_history": {"type": "list"},
         "user_message": {"type": "str"},
-        "original_text": {"type": "str"}
+        "original_text": {"type": "str"},
+        "meta_prompt": {"type": "str"},
+        "state_prompt": {"type": "str"}
     },
     category="Chat"
 )
-def chat_with_voice(voice_name: str, voice_config: dict, conversation_history: list, user_message: str, original_text: str = ""):
+def chat_with_voice(voice_name: str, voice_config: dict, conversation_history: list, user_message: str, original_text: str = "", meta_prompt: str = "", state_prompt: str = ""):
     """
     Chat with a specific voice persona.
 
@@ -29,6 +31,7 @@ def chat_with_voice(voice_name: str, voice_config: dict, conversation_history: l
         conversation_history: Previous messages in the conversation
         user_message: The user's new message
         original_text: The user's original writing text
+        meta_prompt: Additional instructions that apply to all voices
 
     Returns:
         Dictionary with assistant's response
@@ -38,6 +41,8 @@ def chat_with_voice(voice_name: str, voice_config: dict, conversation_history: l
     print(f"   Voice: {voice_name}")
     print(f"   User message: {user_message}")
     print(f"   History length: {len(conversation_history)}")
+    print(f"   Meta prompt: {repr(meta_prompt)[:100]}")
+    print(f"   State prompt: {repr(state_prompt)[:100]}")
     print(f"{'='*60}\n")
 
     agent = PolyAgent(id=f"voice-chat-{voice_name.lower()}")
@@ -65,6 +70,20 @@ Context: The user is writing this text:
 ---
 
 Your initial comment was about this text. Keep this context in mind when responding to the user's questions."""
+
+    # Add meta prompt if available
+    if meta_prompt and meta_prompt.strip():
+        system_prompt += f"""
+
+Additional instructions:
+{meta_prompt.strip()}"""
+
+    # @@@ Add state prompt if available (between meta and voice-specific)
+    if state_prompt and state_prompt.strip():
+        system_prompt += f"""
+
+User's current state:
+{state_prompt.strip()}"""
 
     # Build full prompt with conversation history
     prompt = system_prompt + "\n\nConversation history:\n"
@@ -99,11 +118,13 @@ Your initial comment was about this text. Keep this context in mind when respond
         "text": {"type": "str"},
         "session_id": {"type": "str"},
         "voices": {"type": "dict"},
-        "applied_comments": {"type": "list"}
+        "applied_comments": {"type": "list"},
+        "meta_prompt": {"type": "str"},
+        "state_prompt": {"type": "str"}
     },
     category="Analysis"
 )
-def analyze_text(text: str, session_id: str, voices: dict = None, applied_comments: list = None):
+def analyze_text(text: str, session_id: str, voices: dict = None, applied_comments: list = None, meta_prompt: str = "", state_prompt: str = ""):
     """
     Stateless analysis - returns ONE new comment based on text and applied comments.
 
@@ -112,6 +133,8 @@ def analyze_text(text: str, session_id: str, voices: dict = None, applied_commen
         session_id: Session ID (for future use)
         voices: Voice configuration
         applied_comments: List of already applied comments (to avoid duplicates)
+        meta_prompt: Additional instructions that apply to all voices
+        state_prompt: User's current emotional state prompt
 
     Returns:
         Dictionary with single new voice (or empty list)
@@ -120,12 +143,14 @@ def analyze_text(text: str, session_id: str, voices: dict = None, applied_commen
     print(f"🎯 Stateless analyze_text() called")
     print(f"   Text: {text[:100]}...")
     print(f"   Applied comments: {len(applied_comments or [])}")
+    print(f"   Meta prompt: {repr(meta_prompt)[:100]}")
+    print(f"   State prompt: {repr(state_prompt)[:100]}")
     print(f"{'='*60}\n")
 
     agent = PolyAgent(id="voice-analyzer")
 
     # Get voices from stateless analyzer
-    result = analyze_stateless(agent, text, applied_comments or [], voices)
+    result = analyze_stateless(agent, text, applied_comments or [], voices, meta_prompt, state_prompt)
 
     print(f"✅ Returning {result['new_voices_added']} new voice(s)")
 

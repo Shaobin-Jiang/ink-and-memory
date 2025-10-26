@@ -31,6 +31,8 @@ interface AgentDropdownProps {
 export default function AgentDropdown({ voices, position, onSelect, onClose }: AgentDropdownProps) {
   const enabledVoices = Object.entries(voices).filter(([_, cfg]) => cfg.enabled);
   const [selectedIndex, setSelectedIndex] = React.useState(0);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const itemRefs = React.useRef<Map<number, HTMLDivElement>>(new Map());
 
   // Keyboard navigation
   React.useEffect(() => {
@@ -40,10 +42,10 @@ export default function AgentDropdown({ voices, position, onSelect, onClose }: A
         onClose();
       } else if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setSelectedIndex(prev => (prev + 1) % enabledVoices.length);
+        setSelectedIndex(prev => Math.min(prev + 1, enabledVoices.length - 1));
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setSelectedIndex(prev => (prev - 1 + enabledVoices.length) % enabledVoices.length);
+        setSelectedIndex(prev => Math.max(prev - 1, 0));
       } else if (e.key === 'Enter') {
         e.preventDefault();
         const [name, cfg] = enabledVoices[selectedIndex];
@@ -53,6 +55,32 @@ export default function AgentDropdown({ voices, position, onSelect, onClose }: A
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose, enabledVoices, selectedIndex, onSelect]);
+
+  // @@@ Auto-scroll to selected item
+  React.useEffect(() => {
+    const selectedItem = itemRefs.current.get(selectedIndex);
+    const container = containerRef.current;
+
+    if (selectedItem && container) {
+      const itemRect = selectedItem.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+
+      // Calculate positions relative to container
+      const itemTop = selectedItem.offsetTop;
+      const itemBottom = itemTop + selectedItem.offsetHeight;
+      const containerScrollTop = container.scrollTop;
+      const containerHeight = container.clientHeight;
+
+      // Only scroll if item is not fully visible
+      if (itemTop < containerScrollTop) {
+        // Item is above visible area - scroll up
+        container.scrollTop = itemTop;
+      } else if (itemBottom > containerScrollTop + containerHeight) {
+        // Item is below visible area - scroll down
+        container.scrollTop = itemBottom - containerHeight;
+      }
+    }
+  }, [selectedIndex]);
 
   if (enabledVoices.length === 0) {
     return (
@@ -77,6 +105,7 @@ export default function AgentDropdown({ voices, position, onSelect, onClose }: A
 
   return (
     <div
+      ref={containerRef}
       style={{
         position: 'fixed',
         left: `${position.x}px`,
@@ -98,6 +127,13 @@ export default function AgentDropdown({ voices, position, onSelect, onClose }: A
         return (
           <div
             key={name}
+            ref={(el) => {
+              if (el) {
+                itemRefs.current.set(idx, el);
+              } else {
+                itemRefs.current.delete(idx);
+              }
+            }}
             onClick={() => onSelect(name, cfg)}
             onMouseEnter={() => setSelectedIndex(idx)}
             style={{

@@ -17,8 +17,9 @@ import AnalysisView from './components/AnalysisView';
 import AboutView from './components/AboutView';
 import AgentDropdown from './components/AgentDropdown';
 import ChatWidgetUI from './components/ChatWidgetUI';
+import StateChooser from './components/StateChooser';
 import type { VoiceConfig } from './types/voice';
-import { getVoices } from './utils/voiceStorage';
+import { getVoices, getMetaPrompt, getStateConfig } from './utils/voiceStorage';
 import { getDefaultVoices, chatWithVoice } from './api/voiceApi';
 
 // @@@ Left Toolbar Component - floating toolbelt within left margin
@@ -265,6 +266,12 @@ export default function App() {
   // @@@ Warning dialog state
   const [showWarning, setShowWarning] = useState(false);
 
+  // @@@ State chooser
+  const [selectedState, setSelectedState] = useState<string | null>(
+    () => localStorage.getItem('selected-state')
+  );
+  const [stateConfig, setStateConfig] = useState(() => getStateConfig());
+
   // @@@ Per-cell textarea refs for positioning and style calculations
   const textareaRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
@@ -325,6 +332,13 @@ export default function App() {
       engineRef.current.setVoiceConfigs(voiceConfigs);
     }
   }, [voiceConfigs]);
+
+  // @@@ Reload state config when returning to writing view
+  useEffect(() => {
+    if (currentView === 'writing') {
+      setStateConfig(getStateConfig());
+    }
+  }, [currentView]);
 
   // Initialize engine
   useEffect(() => {
@@ -584,6 +598,13 @@ export default function App() {
       return next;
     });
 
+    // @@@ Auto-resize textarea to prevent internal scrolling
+    const textarea = textareaRefs.current.get(cellId);
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = textarea.scrollHeight + 'px';
+    }
+
     // Close dropdown if @ was deleted in the trigger cell
     if (dropdownVisible && dropdownTriggerCellId === cellId) {
       if (!newText.includes('@')) {
@@ -646,7 +667,13 @@ export default function App() {
 
   const confirmStartFresh = useCallback(() => {
     localStorage.removeItem('ink_memory_state');
+    localStorage.removeItem('selected-state');
     window.location.reload();
+  }, []);
+
+  const handleStateChoose = useCallback((stateId: string) => {
+    setSelectedState(stateId);
+    localStorage.setItem('selected-state', stateId);
   }, []);
 
   // @@@ Insert @ character at the end of last text cell
@@ -770,12 +797,18 @@ export default function App() {
         .join('');
 
       // Call backend - use voiceConfig.name as the voice name for the prompt
+      const metaPrompt = getMetaPrompt();
+      const statePrompt = selectedState && stateConfig.states[selectedState]
+        ? stateConfig.states[selectedState].prompt
+        : '';
       const response = await chatWithVoice(
         widgetData.voiceConfig.name,  // Use the display name, not the key
         widgetData.voiceConfig,
         chatWidget.getConversationHistory().slice(0, -1), // Exclude last message (just added)
         message,
-        allText
+        allText,
+        metaPrompt,
+        statePrompt
       );
 
       // Add assistant response
@@ -792,7 +825,7 @@ export default function App() {
         return next;
       });
     }
-  }, [state]);
+  }, [state, selectedState, stateConfig]);
 
   // @@@ Handle deleting chat widget
   const handleChatDelete = useCallback((widgetId: string) => {
@@ -935,6 +968,15 @@ export default function App() {
                   position: 'relative',
                   maxWidth: '600px'
                 }}>
+                  {/* State chooser widget - always shown, collapses when state selected */}
+                  <div style={{ marginBottom: 24 }}>
+                    <StateChooser
+                      stateConfig={stateConfig}
+                      selectedState={selectedState}
+                      onChoose={handleStateChoose}
+                    />
+                  </div>
+
                   {/* Render cells sequentially with per-cell highlights */}
                   {state.cells.map((cell, idx) => {
                     if (cell.type === 'text') {
@@ -972,6 +1014,9 @@ export default function App() {
                                   refsReadyTriggered.current = true;
                                   setRefsReady(prev => prev + 1);
                                 }
+                                // @@@ Force height to match scrollHeight to prevent internal scrolling
+                                el.style.height = 'auto';
+                                el.style.height = el.scrollHeight + 'px';
                               } else {
                                 textareaRefs.current.delete(cell.id);
                               }
@@ -986,7 +1031,6 @@ export default function App() {
                             onKeyUp={(e) => handleCursorChange(cell.id, e)}
                             onKeyDown={(e) => handleKeyDown(cell.id, e)}
                             placeholder={idx === 0 ? "Start writing..." : "Continue writing..."}
-                            rows={lineCount}
                             style={{
                               width: '100%',
                               border: 'none',
@@ -1002,7 +1046,11 @@ export default function App() {
                               zIndex: 1,
                               marginBottom: '0px',
                               overflow: 'hidden',
-                              minHeight: '32px'
+                              overflowWrap: 'break-word',
+                              wordWrap: 'break-word',
+                              whiteSpace: 'pre-wrap',
+                              minHeight: '32px',
+                              height: 'auto'
                             }}
                           />
                         </div>

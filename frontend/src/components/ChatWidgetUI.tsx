@@ -5,6 +5,26 @@ import {
   FaFistRaised, FaLightbulb, FaShieldAlt, FaWind, FaFire, FaCompass
 } from 'react-icons/fa';
 
+// @@@ Inject CSS keyframes for button pulse animation
+if (typeof document !== 'undefined') {
+  const styleId = 'chat-widget-pulse-animation';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      @keyframes pulse {
+        0%, 100% {
+          opacity: 0.5;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+}
+
 const iconMap = {
   brain: FaBrain,
   heart: FaHeart,
@@ -243,7 +263,8 @@ export default function ChatWidgetUI({ data, onSendMessage, onDelete, isProcessi
             fontWeight: 500,
             cursor: isProcessing || !inputValue.trim() ? 'not-allowed' : 'pointer',
             transition: 'all 0.2s',
-            fontFamily: 'system-ui'
+            fontFamily: 'system-ui',
+            animation: isProcessing ? 'pulse 1.5s ease-in-out infinite' : 'none'
           }}
           onMouseEnter={(e) => {
             if (!isProcessing && inputValue.trim()) {

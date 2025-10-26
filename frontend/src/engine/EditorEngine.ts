@@ -260,6 +260,7 @@ export class EditorEngine {
     try {
       // Call backend (returns ONLY ONE comment at a time)
       const { analyzeText } = await import('../api/voiceApi');
+      const { getMetaPrompt, getStateConfig } = await import('../utils/voiceStorage');
 
       // Convert voiceConfigs to backend format
       const backendVoices: Record<string, any> = {};
@@ -276,7 +277,16 @@ export class EditorEngine {
 
       // Send only APPLIED commentors to backend
       const appliedCommentors = this.state.commentors.filter(c => c.appliedAt);
-      const result = await analyzeText(text, this.state.sessionId, backendVoices, appliedCommentors);
+      const metaPrompt = getMetaPrompt();
+
+      // Get state prompt from localStorage
+      const selectedState = localStorage.getItem('selected-state');
+      const stateConfig = getStateConfig();
+      const statePrompt = selectedState && stateConfig.states[selectedState]
+        ? stateConfig.states[selectedState].prompt
+        : '';
+
+      const result = await analyzeText(text, this.state.sessionId, backendVoices, appliedCommentors, metaPrompt, statePrompt);
 
       // Backend returns at most ONE voice
       if (result.voices.length > 0) {
