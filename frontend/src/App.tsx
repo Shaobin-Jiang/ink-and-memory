@@ -7,7 +7,8 @@ import './App.css';
 import {
   FaSync,
   FaBrain, FaHeart, FaQuestion, FaCloud, FaTheaterMasks, FaEye,
-  FaFistRaised, FaLightbulb, FaShieldAlt, FaWind, FaFire, FaCompass
+  FaFistRaised, FaLightbulb, FaShieldAlt, FaWind, FaFire, FaCompass,
+  FaAlignRight
 } from 'react-icons/fa';
 import LeftSidebar from './components/LeftSidebar';
 import VoiceSettings from './components/VoiceSettings';
@@ -23,7 +24,17 @@ import { getDefaultVoices, chatWithVoice } from './api/voiceApi';
 import { useMobile } from './utils/mobileDetect';
 
 // @@@ Left Toolbar Component - floating toolbelt within left margin
-function LeftToolbar({ onStartFresh, onInsertAgent }: { onStartFresh: () => void; onInsertAgent: () => void }) {
+function LeftToolbar({
+  onStartFresh,
+  onInsertAgent,
+  onToggleAlign,
+  isAligned
+}: {
+  onStartFresh: () => void;
+  onInsertAgent: () => void;
+  onToggleAlign: () => void;
+  isAligned: boolean;
+}) {
   return (
     <div style={{
       position: 'sticky',
@@ -92,6 +103,31 @@ function LeftToolbar({ onStartFresh, onInsertAgent }: { onStartFresh: () => void
         }}
       >
         @
+      </button>
+
+      <button
+        onClick={onToggleAlign}
+        title={isAligned ? "Unalign Comments" : "Align Comments Right"}
+        style={{
+          width: '36px',
+          height: '36px',
+          border: 'none',
+          borderRadius: '4px',
+          backgroundColor: isAligned ? '#e3f2fd' : '#fff',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'all 0.2s ease'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = isAligned ? '#bbdefb' : '#f0f0f0';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = isAligned ? '#e3f2fd' : '#fff';
+        }}
+      >
+        <FaAlignRight size={18} color={isAligned ? '#1976d2' : '#333'} />
       </button>
     </div>
   );
@@ -174,8 +210,8 @@ function CommentGroupCard({
         left: `${position.left}px`,
         transform: `translateY(-50%) ${isHovered ? 'scale(1.02)' : 'scale(1)'}`,
         minWidth: '200px',
-        maxWidth: '400px',
-        height: '54px',
+        maxWidth: '600px',  // @@@ Increased from 400px to allow more expansion
+        minHeight: '54px',  // @@@ Changed from fixed height to minHeight for vertical expansion
         padding: '8px 12px',
         background: colors.gradient,
         borderLeft: `2px solid ${colors.glow}`,
@@ -200,16 +236,16 @@ function CommentGroupCard({
       <div style={{
         display: 'flex',
         gap: '10px',
-        height: '100%',
-        alignItems: 'center'
+        alignItems: 'flex-start'  // @@@ Changed from 'center' to align top for multi-line text
       }}>
         <div style={{
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: 'flex-start',  // @@@ Changed from 'center' to top-align with text
           flexShrink: 0,
-          width: '24px'
+          width: '24px',
+          paddingTop: '2px'  // @@@ Slight padding to align icon with first line
         }}>
           <Icon size={15} color={colors.text} style={{ opacity: 0.75 }} />
           {comments.length > 1 && (
@@ -227,13 +263,14 @@ function CommentGroupCard({
 
         <div style={{
           flex: 1,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          display: '-webkit-box',
-          WebkitLineClamp: 3,
-          WebkitBoxOrient: 'vertical',
           color: colors.text,
-          opacity: 0.85
+          opacity: 0.85,
+          wordWrap: 'break-word',  // @@@ Allow text to wrap instead of ellipsis
+          overflowWrap: 'break-word',
+          display: '-webkit-box',
+          WebkitLineClamp: 3,  // @@@ Limit to 3 lines
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden'
         }}>
           <strong style={{ fontWeight: 600 }}>{currentComment.voice}:</strong> {currentComment.comment}
         </div>
@@ -282,6 +319,9 @@ export default function App() {
   // @@@ Force re-render when refs are ready
   const [refsReady, setRefsReady] = useState(0);
   const refsReadyTriggered = useRef(false);
+
+  // @@@ Comment alignment state
+  const [commentsAligned, setCommentsAligned] = useState(false);
 
   // @@@ Reset refs ready flag when returning to writing view
   useEffect(() => {
@@ -715,6 +755,11 @@ export default function App() {
     }, 0);
   }, [state]);
 
+  // @@@ Toggle comment alignment
+  const handleToggleAlign = useCallback(() => {
+    setCommentsAligned(prev => !prev);
+  }, []);
+
   // @@@ Handle @ key press for agent dropdown
   const handleKeyDown = useCallback((cellId: string, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === '@' && !composingCells.has(cellId)) {
@@ -945,7 +990,12 @@ export default function App() {
               flexShrink: 0,
               marginLeft: '12px'
             }}>
-              <LeftToolbar onStartFresh={handleStartFresh} onInsertAgent={handleInsertAgent} />
+              <LeftToolbar
+                onStartFresh={handleStartFresh}
+                onInsertAgent={handleInsertAgent}
+                onToggleAlign={handleToggleAlign}
+                isAligned={commentsAligned}
+              />
             </div>
           )}
 
@@ -1139,29 +1189,38 @@ export default function App() {
                 </div>
 
                 {/* Comments layer (absolute positioned) - hide on mobile */}
-                {!isMobile && Array.from(commentGroups.entries()).map(([groupKey, group]) => {
-                  const currentIndex = groupPages.get(groupKey) || 0;
+                {!isMobile && (() => {
+                  // @@@ Calculate global max line width across all groups for alignment
+                  const globalMaxLineWidth = Math.max(
+                    0,
+                    ...Array.from(commentGroups.values()).map(g => g.maxLineWidth)
+                  );
 
-                  // @@@ Get the specific textarea for this group's cell
-                  const cellTextarea = textareaRefs.current.get(group.cellId);
-                  if (!cellTextarea) return null;
+                  return Array.from(commentGroups.entries()).map(([groupKey, group]) => {
+                    const currentIndex = groupPages.get(groupKey) || 0;
 
-                  // @@@ Use offsetTop relative to the content container (with maxWidth: 600px)
-                  // This div is at line 1031 with position: relative
-                  const cellWrapper = cellTextarea.parentElement; // The div with position: relative
-                  if (!cellWrapper) return null;
+                    // @@@ Get the specific textarea for this group's cell
+                    const cellTextarea = textareaRefs.current.get(group.cellId);
+                    if (!cellTextarea) return null;
 
-                  const cellOffsetTop = cellWrapper.offsetTop;
+                    // @@@ Use offsetTop relative to the content container (with maxWidth: 600px)
+                    // This div is at line 1031 with position: relative
+                    const cellWrapper = cellTextarea.parentElement; // The div with position: relative
+                    if (!cellWrapper) return null;
 
-                  // @@@ Calculate line height from textarea styles
-                  const computedStyle = window.getComputedStyle(cellTextarea);
-                  const fontSize = parseFloat(computedStyle.fontSize) || 18;
-                  const lineHeightRatio = parseFloat(computedStyle.lineHeight) / fontSize || 1.8;
-                  const lineHeight = fontSize * lineHeightRatio;
+                    const cellOffsetTop = cellWrapper.offsetTop;
 
-                  const containerPadding = parseFloat(window.getComputedStyle(cellWrapper.parentElement || cellWrapper).paddingLeft) || 20;
-                  const gap = Math.max(30, window.innerWidth * 0.02);
-                  const leftPosition = containerPadding + group.maxLineWidth + gap;
+                    // @@@ Calculate line height from textarea styles
+                    const computedStyle = window.getComputedStyle(cellTextarea);
+                    const fontSize = parseFloat(computedStyle.fontSize) || 18;
+                    const lineHeightRatio = parseFloat(computedStyle.lineHeight) / fontSize || 1.8;
+                    const lineHeight = fontSize * lineHeightRatio;
+
+                    const containerPadding = parseFloat(window.getComputedStyle(cellWrapper.parentElement || cellWrapper).paddingLeft) || 20;
+                    const gap = Math.max(30, window.innerWidth * 0.02);
+                    // @@@ Use global max width when aligned, otherwise use group's max width
+                    const lineWidthToUse = commentsAligned ? globalMaxLineWidth : group.maxLineWidth;
+                    const leftPosition = containerPadding + lineWidthToUse + gap;
 
                   // @@@ Position using offsetTop (scroll-independent)
                   // centerY is already relative to cell's top, so just add:
@@ -1182,8 +1241,9 @@ export default function App() {
                         left: leftPosition
                       }}
                     />
-                  );
-                })}
+                    );
+                  });
+                })()}
 
                 {/* @@@ Mobile comment popup - show when cursor is in highlighted area */}
                 {isMobile && mobileActiveComment && (

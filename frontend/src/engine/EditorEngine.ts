@@ -82,8 +82,8 @@ export function computeWeight(text: string): number {
 
 // @@@ Extract completed sentences (for backend analysis)
 export function getCompletedSentences(text: string): string {
-  // Split by sentence boundaries
-  const parts = text.split(/([.!?。！？]+)/);
+  // Split by sentence boundaries (including Chinese comma and newline)
+  const parts = text.split(/([.!?。！？，\n]+)/);
 
   let result = '';
   for (let i = 0; i < parts.length - 1; i += 2) {

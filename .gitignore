@@ -5,6 +5,7 @@ backend/.polycache/
 backend/benchmark/
 __pycache__/
 *.pyc
+AGENTS.md
 
 # Node
 frontend/node_modules/
