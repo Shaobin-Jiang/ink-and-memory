@@ -112,9 +112,6 @@ CRITICAL RULES:
 - DO NOT suggest any rejected phrases: {overlapped_phrases}
 - DO NOT CREATE NEW VOICE NAMES - Only use from the available list
 - Return null if nothing is worth commenting on
-- IGNORE text inside quotation marks ("..." or '...') - only highlight the author's own words
-- Only comment on complete sentences (ending with .!?。！？)
-- Prefer SHORT highlights without punctuation (e.g., "feel anxious" not "I feel anxious.")
 - Write in the SAME LANGUAGE as the text"""
 
     # @@@ Add meta prompt if available
