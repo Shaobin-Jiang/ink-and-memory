@@ -1,9 +1,14 @@
+import { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+
 interface Props {
   currentView: 'writing' | 'settings' | 'timeline' | 'analysis' | 'about';
   onViewChange: (view: 'writing' | 'settings' | 'timeline' | 'analysis' | 'about') => void;
 }
 
 export default function LeftSidebar({ currentView, onViewChange }: Props) {
+  const { user, logout } = useAuth();
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const buttonStyle = (isActive: boolean) => ({
     height: '100%',
     padding: '0 20px',
@@ -182,33 +187,103 @@ export default function LeftSidebar({ currentView, onViewChange }: Props) {
         </svg>
       </button>
 
-      <button
-        style={{
-          width: 28,
-          height: 28,
-          borderRadius: 14,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: '#4CAF50',
-          border: 'none',
-          cursor: 'pointer',
-          transition: 'all 0.2s',
-          color: '#fff',
-          fontSize: 12,
-          fontWeight: 600,
-          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
-        }}
-        onMouseEnter={e => {
-          e.currentTarget.style.background = '#45a049';
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.background = '#4CAF50';
-        }}
-        title="User Profile"
-      >
-        U
-      </button>
+      <div style={{ position: 'relative' }}>
+        <button
+          onClick={() => setShowUserMenu(!showUserMenu)}
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 14,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: '#4CAF50',
+            border: 'none',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            color: '#fff',
+            fontSize: 12,
+            fontWeight: 600,
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = '#45a049';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = '#4CAF50';
+          }}
+          title="User Profile"
+        >
+          {user?.display_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
+        </button>
+
+        {showUserMenu && (
+          <>
+            <div
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                zIndex: 998
+              }}
+              onClick={() => setShowUserMenu(false)}
+            />
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              right: 0,
+              marginTop: 8,
+              width: 200,
+              background: '#fff',
+              border: '1px solid #d0c4b0',
+              borderRadius: 8,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              zIndex: 999,
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                padding: '12px 16px',
+                borderBottom: '1px solid #e8e8e8',
+                fontSize: 13
+              }}>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                  {user?.display_name || 'User'}
+                </div>
+                <div style={{ fontSize: 11, color: '#666' }}>
+                  {user?.email}
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  logout();
+                  setShowUserMenu(false);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '10px 16px',
+                  border: 'none',
+                  background: 'transparent',
+                  textAlign: 'left',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  transition: 'background 0.2s',
+                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = '#f5f5f5';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                Logout
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -388,29 +388,96 @@ export default function App() {
 
     engine.subscribe((newState) => {
       setState({ ...newState });
-      localStorage.setItem('ink_memory_state', JSON.stringify(newState));
+      // Only save to localStorage if not authenticated (guest mode)
+      if (!isAuthenticated) {
+        localStorage.setItem('ink_memory_state', JSON.stringify(newState));
+      }
     });
 
-    const saved = localStorage.getItem('ink_memory_state');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        engine.loadState(parsed);
-        setState(engine.getState());
+    // Load initial state
+    const loadInitialState = async () => {
+      if (isAuthenticated) {
+        // @@@ Load from database if authenticated
+        try {
+          const { listSessions, getSession, getPreferences } = await import('./api/voiceApi');
 
-        // Initialize localTexts from loaded state
-        const texts = new Map<string, string>();
-        parsed.cells?.filter((c: any) => c.type === 'text').forEach((c: any) => {
-          texts.set(c.id, c.content || '');
-        });
-        setLocalTexts(texts);
-      } catch (e) {
-        console.error('Failed to load saved state:', e);
+          // Get list of sessions
+          const sessions = await listSessions();
+
+          // Load the most recent session or current session
+          let sessionToLoad = null;
+          const currentSessionId = 'current-session';
+          const currentSession = sessions.find(s => s.id === currentSessionId);
+
+          if (currentSession) {
+            // Load current session
+            const fullSession = await getSession(currentSessionId);
+            sessionToLoad = fullSession.editor_state;
+          } else if (sessions.length > 0) {
+            // Load most recent session
+            const mostRecent = sessions.sort((a, b) =>
+              new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+            )[0];
+            const fullSession = await getSession(mostRecent.id);
+            sessionToLoad = fullSession.editor_state;
+          }
+
+          if (sessionToLoad) {
+            engine.loadState(sessionToLoad);
+            setState(engine.getState());
+
+            // Initialize localTexts from loaded state
+            const texts = new Map<string, string>();
+            sessionToLoad.cells?.filter((c: any) => c.type === 'text').forEach((c: any) => {
+              texts.set(c.id, c.content || '');
+            });
+            setLocalTexts(texts);
+          } else {
+            setState(engine.getState());
+          }
+
+          // Load preferences
+          try {
+            const prefs = await getPreferences();
+            if (prefs.voice_configs) {
+              setVoiceConfigs(prefs.voice_configs);
+            }
+            if (prefs.selected_state) {
+              setSelectedState(prefs.selected_state);
+            }
+          } catch (err) {
+            console.log('No preferences found, using defaults');
+          }
+        } catch (error) {
+          console.error('Failed to load from database:', error);
+          setState(engine.getState());
+        }
+      } else {
+        // Load from localStorage for guest mode
+        const saved = localStorage.getItem('ink_memory_state');
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            engine.loadState(parsed);
+            setState(engine.getState());
+
+            // Initialize localTexts from loaded state
+            const texts = new Map<string, string>();
+            parsed.cells?.filter((c: any) => c.type === 'text').forEach((c: any) => {
+              texts.set(c.id, c.content || '');
+            });
+            setLocalTexts(texts);
+          } catch (e) {
+            console.error('Failed to load saved state:', e);
+          }
+        } else {
+          setState(engine.getState());
+        }
       }
-    } else {
-      setState(engine.getState());
-    }
-  }, []);
+    };
+
+    loadInitialState();
+  }, [isAuthenticated]);
 
   // @@@ Sync localTexts from state when not composing
   useEffect(() => {
@@ -428,6 +495,23 @@ export default function App() {
       });
     }
   }, [state, composingCells]);
+
+  // @@@ Auto-save to database for authenticated users
+  useEffect(() => {
+    if (!isAuthenticated || !state) return;
+
+    const autoSaveTimer = setTimeout(async () => {
+      try {
+        const { saveSession } = await import('./api/voiceApi');
+        await saveSession('current-session', state, 'Current Session');
+        console.log('Auto-saved to database');
+      } catch (error) {
+        console.error('Auto-save failed:', error);
+      }
+    }, 3000); // Save 3 seconds after last change
+
+    return () => clearTimeout(autoSaveTimer);
+  }, [state, isAuthenticated]);
 
   // @@@ Group comments by 2-row blocks, accounting for widgets between cells
   const commentGroups = useMemo(() => {

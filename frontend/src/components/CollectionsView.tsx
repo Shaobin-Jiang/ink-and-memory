@@ -194,30 +194,60 @@ function TimelinePage() {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    // Load starred comments
-    const savedState = localStorage.getItem('ink_memory_state');
-    if (savedState) {
-      try {
-        const state = JSON.parse(savedState);
-        const starred = state.commentors?.filter((c: Commentor) => c.feedback === 'star') || [];
-        setStarredComments(starred);
-      } catch (e) {
-        console.error('Failed to load starred comments:', e);
+    const loadData = async () => {
+      // Load starred comments from localStorage (not migrated yet)
+      const savedState = localStorage.getItem('ink_memory_state');
+      if (savedState) {
+        try {
+          const state = JSON.parse(savedState);
+          const starred = state.commentors?.filter((c: Commentor) => c.feedback === 'star') || [];
+          setStarredComments(starred);
+        } catch (e) {
+          console.error('Failed to load starred comments:', e);
+        }
       }
-    }
 
-    // Load pictures
-    const savedPictures = localStorage.getItem('daily-pictures');
-    if (savedPictures) {
-      try {
-        setPictures(JSON.parse(savedPictures));
-      } catch (e) {
-        console.error('Failed to load pictures:', e);
+      // @@@ Load pictures from database if authenticated
+      if (isAuthenticated) {
+        try {
+          const { getDailyPictures } = await import('../api/voiceApi');
+          const dbPictures = await getDailyPictures(30);
+          // Convert database format to app format
+          const formattedPictures = dbPictures.map(p => ({
+            date: p.date,
+            base64: p.image_base64,
+            prompt: p.prompt || ''
+          }));
+          setPictures(formattedPictures);
+        } catch (error) {
+          console.error('Failed to load pictures from database:', error);
+          // Fallback to localStorage
+          const savedPictures = localStorage.getItem('daily-pictures');
+          if (savedPictures) {
+            try {
+              setPictures(JSON.parse(savedPictures));
+            } catch (e) {
+              console.error('Failed to load pictures:', e);
+            }
+          }
+        }
+      } else {
+        // Guest mode: load from localStorage
+        const savedPictures = localStorage.getItem('daily-pictures');
+        if (savedPictures) {
+          try {
+            setPictures(JSON.parse(savedPictures));
+          } catch (e) {
+            console.error('Failed to load pictures:', e);
+          }
+        }
       }
-    }
 
-    setInitialLoading(false);
-  }, []);
+      setInitialLoading(false);
+    };
+
+    loadData();
+  }, [isAuthenticated]);
 
   // @@@ Group items by date
   const timelineByDate = new Map<string, { picture?: any; comments: Commentor[] }>();
@@ -289,14 +319,15 @@ function TimelinePage() {
       const pictureDate = new Date(newPicture.date).toISOString().split('T')[0]; // YYYY-MM-DD format
       await saveDailyPicture(pictureDate, image_base64, prompt);
 
-      // @@@ Overwrite existing picture for this date instead of adding new
+      // @@@ Update local state
       const normalizedNewDate = formatDate(newPicture.date);
-
       const updated = pictures.filter(p => formatDate(p.date) !== normalizedNewDate);
 
       updated.unshift(newPicture);
       setPictures(updated);
-      localStorage.setItem('daily-pictures', JSON.stringify(updated));
+
+      // Don't save to localStorage for authenticated users (database is source of truth)
+      // localStorage.setItem('daily-pictures', JSON.stringify(updated));
     } catch (error) {
       console.error('Image generation failed:', error);
       alert('Failed to generate image. Please try again.');
