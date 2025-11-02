@@ -49,7 +49,11 @@ const ICON_LABELS = {
 
 interface Props {
   defaultVoices: Record<string, VoiceConfig>;
-  onSave: (voices: Record<string, VoiceConfig>) => void;
+  onSave: (data: {
+    voices: Record<string, VoiceConfig>;
+    metaPrompt: string;
+    stateConfig: StateConfig;
+  }) => void;
 }
 
 export default function VoiceSettings({ defaultVoices, onSave }: Props) {
@@ -76,7 +80,7 @@ export default function VoiceSettings({ defaultVoices, onSave }: Props) {
     saveVoices(voices);
     saveMetaPrompt(metaPrompt);
     saveStateConfig(stateConfig);
-    onSave(voices);
+    onSave({ voices, metaPrompt, stateConfig });
     setSaveStatus('saved');
     setTimeout(() => setSaveStatus('idle'), 2000);
   };
@@ -87,10 +91,12 @@ export default function VoiceSettings({ defaultVoices, onSave }: Props) {
     localStorage.removeItem('state-config');
     // Deep copy to force React to re-render
     const freshDefaults = JSON.parse(JSON.stringify(defaultVoices));
+    const freshMetaPrompt = getMetaPrompt();
+    const freshStateConfig = getStateConfig();
     setVoices(freshDefaults);
-    setMetaPrompt(getMetaPrompt());
-    setStateConfig(getStateConfig());
-    onSave(freshDefaults);
+    setMetaPrompt(freshMetaPrompt);
+    setStateConfig(freshStateConfig);
+    onSave({ voices: freshDefaults, metaPrompt: freshMetaPrompt, stateConfig: freshStateConfig });
   };
 
   const handleAdd = () => {
@@ -165,7 +171,7 @@ export default function VoiceSettings({ defaultVoices, onSave }: Props) {
           saveVoices(importedVoices);
           saveMetaPrompt(importedMetaPrompt);
           saveStateConfig(importedStateConfig);
-          onSave(importedVoices);
+          onSave({ voices: importedVoices, metaPrompt: importedMetaPrompt, stateConfig: importedStateConfig });
         });
       }
     };

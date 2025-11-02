@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { getCalendarData } from '../utils/calendarStorage';
-import { analyzeEchoes, analyzeTraits, analyzePatterns } from '../api/voiceApi';
+import { analyzeEchoes, analyzeTraits, analyzePatterns, saveAnalysisReport, getAnalysisReports } from '../api/voiceApi';
 import type { TextCell } from '../engine/EditorEngine';
+import { useAuth } from '../contexts/AuthContext';
 
 // @@@ Constants
 const MAX_SAVED_REPORTS = 10;
@@ -66,6 +67,7 @@ interface AnalysisReport {
 }
 
 export default function AnalysisView() {
+  const { isAuthenticated } = useAuth();
   const [allNotes, setAllNotes] = useState('');
   const [echoes, setEchoes] = useState<Echo[]>([]);
   const [traits, setTraits] = useState<Trait[]>([]);
@@ -117,27 +119,64 @@ export default function AnalysisView() {
       totalEntries: entryCount
     });
 
-    // @@@ Load saved reports history from localStorage
-    const savedReportsData = localStorage.getItem(LOCALSTORAGE_KEY);
-    if (savedReportsData) {
-      try {
-        const reports = JSON.parse(savedReportsData);
-        setSavedReports(reports);
+    // @@@ Load saved reports history from database if authenticated, localStorage if guest
+    const loadReports = async () => {
+      if (isAuthenticated) {
+        try {
+          const dbReports = await getAnalysisReports(MAX_SAVED_REPORTS);
+          // Convert database format to app format
+          const formattedReports = dbReports.map((r: any) => ({
+            id: r.id,
+            echoes: r.report_data?.echoes || [],
+            traits: r.report_data?.traits || [],
+            patterns: r.report_data?.patterns || [],
+            timestamp: new Date(r.created_at).getTime(),
+            stats: r.report_data?.stats || { days: 0, entries: 0, words: 0 }
+          }));
+          setSavedReports(formattedReports);
 
-        // @@@ Load most recent report into state (defensive checks for legacy data)
-        if (reports.length > 0) {
-          const mostRecent = reports[0];
-          setEchoes(mostRecent.echoes || []);
-          setTraits(mostRecent.traits || []);
-          setPatterns(mostRecent.patterns || []);
+          // Load most recent report into state
+          if (formattedReports.length > 0) {
+            const mostRecent = formattedReports[0];
+            setEchoes(mostRecent.echoes || []);
+            setTraits(mostRecent.traits || []);
+            setPatterns(mostRecent.patterns || []);
+          }
+        } catch (e) {
+          console.error('Failed to load reports from database:', e);
         }
-      } catch (e) {
-        console.error('Failed to load saved reports:', e);
+      } else {
+        // Guest mode: load from localStorage
+        const savedReportsData = localStorage.getItem(LOCALSTORAGE_KEY);
+        if (savedReportsData) {
+          try {
+            const reports = JSON.parse(savedReportsData);
+            setSavedReports(reports);
+
+            // Load most recent report into state
+            if (reports.length > 0) {
+              const mostRecent = reports[0];
+              setEchoes(mostRecent.echoes || []);
+              setTraits(mostRecent.traits || []);
+              setPatterns(mostRecent.patterns || []);
+            }
+          } catch (e) {
+            console.error('Failed to load saved reports:', e);
+          }
+        }
       }
-    }
-  }, []);
+    };
+
+    loadReports();
+  }, [isAuthenticated]);
 
   const handleAnalyzeAll = async () => {
+    // @@@ Block analysis for guests
+    if (!isAuthenticated) {
+      setError('Please log in to use reflections. This feature requires authentication.');
+      return;
+    }
+
     if (!allNotes.trim()) {
       setError('No notes found. Save some entries first.');
       return;
@@ -188,7 +227,7 @@ export default function AnalysisView() {
       )
     ]);
 
-    // @@@ Save report to localStorage history (prepend to array)
+    // @@@ Save report to database if authenticated, localStorage if guest
     const newReport: AnalysisReport = {
       id: Date.now(),
       echoes: echoesResult,
@@ -202,14 +241,41 @@ export default function AnalysisView() {
       }
     };
 
-    // Get existing reports and prepend new one
-    const updatedReports = [newReport, ...savedReports];
+    if (isAuthenticated) {
+      try {
+        // Save to database
+        await saveAnalysisReport('full_analysis', {
+          echoes: echoesResult,
+          traits: traitsResult,
+          patterns: patternsResult,
+          stats: {
+            days: stats.totalDays,
+            entries: stats.totalEntries,
+            words: stats.totalWords
+          }
+        }, allNotes);
 
-    // Keep only last MAX_SAVED_REPORTS reports
-    const limitedReports = updatedReports.slice(0, MAX_SAVED_REPORTS);
-
-    localStorage.setItem(LOCALSTORAGE_KEY, JSON.stringify(limitedReports));
-    setSavedReports(limitedReports);
+        // Reload reports from database
+        const dbReports = await getAnalysisReports(MAX_SAVED_REPORTS);
+        const formattedReports = dbReports.map((r: any) => ({
+          id: r.id,
+          echoes: r.report_data?.echoes || [],
+          traits: r.report_data?.traits || [],
+          patterns: r.report_data?.patterns || [],
+          timestamp: new Date(r.created_at).getTime(),
+          stats: r.report_data?.stats || { days: 0, entries: 0, words: 0 }
+        }));
+        setSavedReports(formattedReports);
+      } catch (error) {
+        console.error('Failed to save report to database:', error);
+      }
+    } else {
+      // Guest mode: save to localStorage
+      const updatedReports = [newReport, ...savedReports];
+      const limitedReports = updatedReports.slice(0, MAX_SAVED_REPORTS);
+      localStorage.setItem(LOCALSTORAGE_KEY, JSON.stringify(limitedReports));
+      setSavedReports(limitedReports);
+    }
 
     // @@@ Switch to report view after analysis completes
     setViewMode('report');

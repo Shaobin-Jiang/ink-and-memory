@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import type { Commentor } from '../engine/EditorEngine';
 import { findNormalizedPhrase } from '../utils/textNormalize';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,7 +12,7 @@ interface TimelineDay {
   daysOffset: number;
 }
 
-export default function CollectionsView() {
+export default function CollectionsView({ isVisible }: { isVisible: boolean }) {
   return (
     <div style={{
       width: '100%',
@@ -22,7 +22,7 @@ export default function CollectionsView() {
       background: '#f8f0e6',
       overflow: 'hidden'
     }}>
-      <TimelinePage />
+      <TimelinePage isVisible={isVisible} />
     </div>
   );
 }
@@ -212,7 +212,7 @@ async function getAllNotesFromSessions(isAuthenticated: boolean): Promise<string
 }
 
 // @@@ Timeline page - combines pictures and starred comments by date
-function TimelinePage() {
+function TimelinePage({ isVisible }: { isVisible: boolean }) {
   const { isAuthenticated } = useAuth();
   const [starredComments, setStarredComments] = useState<Commentor[]>([]);
   const [pictures, setPictures] = useState<Array<{ date: string; base64: string; prompt: string }>>([]);
@@ -223,15 +223,38 @@ function TimelinePage() {
 
   useEffect(() => {
     const loadData = async () => {
-      // Load starred comments from localStorage (not migrated yet)
-      const savedState = localStorage.getItem('ink_memory_state');
-      if (savedState) {
+      // @@@ Load starred comments from database if authenticated, localStorage if guest
+      if (isAuthenticated) {
         try {
-          const state = JSON.parse(savedState);
-          const starred = state.commentors?.filter((c: Commentor) => c.feedback === 'star') || [];
-          setStarredComments(starred);
-        } catch (e) {
-          console.error('Failed to load starred comments:', e);
+          const { listSessions, getSession } = await import('../api/voiceApi');
+          const sessions = await listSessions();
+          const allStarred: Commentor[] = [];
+
+          for (const session of sessions) {
+            try {
+              const fullSession = await getSession(session.id);
+              const starred = fullSession.editor_state?.commentors?.filter((c: Commentor) => c.feedback === 'star') || [];
+              allStarred.push(...starred);
+            } catch (err) {
+              console.error(`Failed to load session ${session.id}:`, err);
+            }
+          }
+
+          setStarredComments(allStarred);
+        } catch (error) {
+          console.error('Failed to load starred comments from database:', error);
+        }
+      } else {
+        // Guest mode: load from localStorage
+        const savedState = localStorage.getItem('ink_memory_state');
+        if (savedState) {
+          try {
+            const state = JSON.parse(savedState);
+            const starred = state.commentors?.filter((c: Commentor) => c.feedback === 'star') || [];
+            setStarredComments(starred);
+          } catch (e) {
+            console.error('Failed to load starred comments:', e);
+          }
         }
       }
 
@@ -297,31 +320,30 @@ function TimelinePage() {
   });
 
   // @@@ Set initial scroll position to center on today's card
-  useEffect(() => {
-    // @@@ Only center after data has loaded
-    if (initialLoading) return;
+  // Use useLayoutEffect to position BEFORE browser paints (prevents flash)
+  useLayoutEffect(() => {
+    // @@@ Only center when timeline is visible AND data has loaded
+    if (!isVisible || initialLoading) return;
 
-    // Triple RAF to ensure layout is complete AND data is rendered
+    // Double RAF to ensure layout is complete
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (scrollContainerRef.current) {
-            // Today is at index 7 (after 7 past days)
-            // Each card is 500px + 4rem gap (64px) = 564px
-            // Plus left padding of 4rem (64px)
-            const cardWidth = 500 + 64;
-            const todayIndex = 7;
-            const leftPadding = 64;
-            const containerWidth = scrollContainerRef.current.clientWidth;
+        if (scrollContainerRef.current) {
+          // Today is at index 7 (after 7 past days)
+          // Each card is 500px + 4rem gap (64px) = 564px
+          // Plus left padding of 4rem (64px)
+          const cardWidth = 500 + 64;
+          const todayIndex = 7;
+          const leftPadding = 64;
+          const containerWidth = scrollContainerRef.current.clientWidth;
 
-            // Center today's card
-            const scrollLeft = leftPadding + (todayIndex * cardWidth) - (containerWidth / 2) + (250);
-            scrollContainerRef.current.scrollLeft = scrollLeft;
-          }
-        });
+          // Center today's card
+          const scrollLeft = leftPadding + (todayIndex * cardWidth) - (containerWidth / 2) + (250);
+          scrollContainerRef.current.scrollLeft = scrollLeft;
+        }
       });
     });
-  }, [initialLoading]);
+  }, [isVisible, initialLoading]);
 
   const handleGenerateForDate = async (dateStr: string) => {
     // @@@ Block image generation for guests
@@ -358,9 +380,6 @@ function TimelinePage() {
 
       updated.unshift(newPicture);
       setPictures(updated);
-
-      // Don't save to localStorage for authenticated users (database is source of truth)
-      // localStorage.setItem('daily-pictures', JSON.stringify(updated));
     } catch (error) {
       console.error('Image generation failed:', error);
       alert('Failed to generate image. Please try again.');

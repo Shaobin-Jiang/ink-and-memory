@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { StateConfig } from '../types/voice';
 
 interface Props {
@@ -9,6 +9,13 @@ interface Props {
 
 export default function StateChooser({ stateConfig, selectedState, onChoose }: Props) {
   const [isExpanded, setIsExpanded] = useState(!selectedState);
+
+  // @@@ Collapse when selectedState is set externally (e.g., loaded from database)
+  useEffect(() => {
+    if (selectedState) {
+      setIsExpanded(false);
+    }
+  }, [selectedState]);
 
   const selectedStateData = selectedState ? stateConfig.states[selectedState] : null;
 

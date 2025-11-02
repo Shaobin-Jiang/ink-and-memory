@@ -20,9 +20,9 @@ import AboutView from './components/AboutView';
 import AgentDropdown from './components/AgentDropdown';
 import ChatWidgetUI from './components/ChatWidgetUI';
 import StateChooser from './components/StateChooser';
-import type { VoiceConfig } from './types/voice';
+import type { VoiceConfig, StateConfig } from './types/voice';
 import { getVoices, getMetaPrompt, getStateConfig } from './utils/voiceStorage';
-import { getDefaultVoices, chatWithVoice, importLocalData, generateDailyPicture, saveDailyPicture } from './api/voiceApi';
+import { getDefaultVoices, chatWithVoice, importLocalData } from './api/voiceApi';
 import { useMobile } from './utils/mobileDetect';
 import { CommentGroupCard } from './components/CommentCard';
 import { findNormalizedPhrase } from './utils/textNormalize';
@@ -260,6 +260,7 @@ export default function App() {
 
   // @@@ Auth screen state
   const [authScreen, setAuthScreen] = useState<'login' | 'register'>('login');
+  const [guestMode, setGuestMode] = useState(false);
   const [showMigrationDialog, setShowMigrationDialog] = useState(false);
   const [isMigrating, setIsMigrating] = useState(false);
 
@@ -289,10 +290,8 @@ export default function App() {
   // @@@ Warning dialog state
   const [showWarning, setShowWarning] = useState(false);
 
-  // @@@ State chooser
-  const [selectedState, setSelectedState] = useState<string | null>(
-    () => localStorage.getItem('selected-state')
-  );
+  // @@@ State chooser (start with null, load from database or localStorage later)
+  const [selectedState, setSelectedState] = useState<string | null>(null);
   const [stateConfig, setStateConfig] = useState(() => getStateConfig());
 
   // @@@ Per-cell textarea refs for positioning and style calculations
@@ -442,7 +441,7 @@ export default function App() {
             if (prefs.voice_configs) {
               setVoiceConfigs(prefs.voice_configs);
             }
-            if (prefs.selected_state) {
+            if (prefs.selected_state !== undefined && prefs.selected_state !== null) {
               setSelectedState(prefs.selected_state);
             }
           } catch (err) {
@@ -472,6 +471,12 @@ export default function App() {
           }
         } else {
           setState(engine.getState());
+        }
+
+        // @@@ Load selectedState from localStorage for guest mode
+        const savedState = localStorage.getItem('selected-state');
+        if (savedState) {
+          setSelectedState(savedState);
         }
       }
     };
@@ -817,11 +822,33 @@ export default function App() {
     setShowWarning(true);
   }, []);
 
-  const confirmStartFresh = useCallback(() => {
-    localStorage.removeItem('ink_memory_state');
-    localStorage.removeItem('selected-state');
+  const confirmStartFresh = useCallback(async () => {
+    if (isAuthenticated && engineRef.current) {
+      // For authenticated users: save empty state to database
+      const currentState = engineRef.current.getState();
+      const emptyState = {
+        cells: [{ id: Math.random().toString(36).slice(2), type: 'text', content: '' }],
+        commentors: [],
+        tasks: [],
+        weightPath: [],
+        overlappedPhrases: [],
+        sessionId: currentState.sessionId
+      };
+
+      try {
+        const { saveSession } = await import('./api/voiceApi');
+        await saveSession(emptyState.sessionId, emptyState);
+      } catch (error) {
+        console.error('Failed to clear session in database:', error);
+      }
+    } else {
+      // For guest users: clear localStorage
+      localStorage.removeItem('ink_memory_state');
+      localStorage.removeItem('selected-state');
+    }
+
     window.location.reload();
-  }, []);
+  }, [isAuthenticated]);
 
   const handleSaveToday = useCallback(() => {
     if (!state || !engineRef.current) return;
@@ -865,10 +892,43 @@ export default function App() {
     }
   }, []);
 
-  const handleStateChoose = useCallback((stateId: string) => {
+  const handleStateChoose = useCallback(async (stateId: string) => {
     setSelectedState(stateId);
-    localStorage.setItem('selected-state', stateId);
-  }, []);
+
+    // @@@ Save to database if authenticated, localStorage if guest
+    if (isAuthenticated) {
+      try {
+        const { savePreferences } = await import('./api/voiceApi');
+        await savePreferences({ selected_state: stateId });
+      } catch (error) {
+        console.error('Failed to save state to database:', error);
+      }
+    } else {
+      localStorage.setItem('selected-state', stateId);
+    }
+  }, [isAuthenticated]);
+
+  const handleVoiceConfigsSave = useCallback(async (data: {
+    voices: Record<string, VoiceConfig>;
+    metaPrompt: string;
+    stateConfig: StateConfig;
+  }) => {
+    setVoiceConfigs(data.voices);
+
+    // @@@ Save to database if authenticated
+    if (isAuthenticated) {
+      try {
+        const { savePreferences } = await import('./api/voiceApi');
+        await savePreferences({
+          voice_configs: data.voices,
+          meta_prompt: data.metaPrompt,
+          state_config: data.stateConfig
+        });
+      } catch (error) {
+        console.error('Failed to save preferences to database:', error);
+      }
+    }
+  }, [isAuthenticated]);
 
   // @@@ Insert @ character at the end of last text cell
   const handleInsertAgent = useCallback(() => {
@@ -918,17 +978,17 @@ export default function App() {
   const handleMigrateData = useCallback(async () => {
     setIsMigrating(true);
     try {
-      // Export all localStorage data
+      // Export all localStorage data (convert null to undefined)
       const migrationData = {
-        currentSession: localStorage.getItem('ink_memory_state'),
-        calendarEntries: localStorage.getItem('calendarEntries'),
-        dailyPictures: localStorage.getItem('dailyPictures'),
-        voiceCustomizations: localStorage.getItem('voice-configs'),
-        metaPrompt: localStorage.getItem('meta-prompt'),
-        stateConfig: localStorage.getItem('state-config'),
-        selectedState: localStorage.getItem('selected-state'),
-        analysisReports: localStorage.getItem('analysisReports'),
-        oldDocument: localStorage.getItem('document')
+        currentSession: localStorage.getItem('ink_memory_state') ?? undefined,
+        calendarEntries: localStorage.getItem('calendarEntries') ?? undefined,
+        dailyPictures: localStorage.getItem('dailyPictures') ?? undefined,
+        voiceCustomizations: localStorage.getItem('voice-configs') ?? undefined,
+        metaPrompt: localStorage.getItem('meta-prompt') ?? undefined,
+        stateConfig: localStorage.getItem('state-config') ?? undefined,
+        selectedState: localStorage.getItem('selected-state') ?? undefined,
+        analysisReports: localStorage.getItem('analysisReports') ?? undefined,
+        oldDocument: localStorage.getItem('document') ?? undefined
       };
 
       // Call backend migration endpoint
@@ -968,6 +1028,10 @@ export default function App() {
   const handleAuthSuccess = useCallback(() => {
     // After successful login/register, check for migration
     // This is handled by the useEffect hook above
+  }, []);
+
+  const handleContinueAsGuest = useCallback(() => {
+    setGuestMode(true);
   }, []);
 
   // @@@ Comment interaction handlers
@@ -1257,8 +1321,8 @@ export default function App() {
     );
   }
 
-  // @@@ Show auth screen if not authenticated
-  if (!isAuthenticated) {
+  // @@@ Show auth screen if not authenticated and not in guest mode
+  if (!isAuthenticated && !guestMode) {
     return (
       <div style={{
         display: 'flex',
@@ -1272,6 +1336,7 @@ export default function App() {
           <LoginForm
             onSuccess={handleAuthSuccess}
             onSwitchToRegister={() => setAuthScreen('register')}
+            onContinueAsGuest={handleContinueAsGuest}
           />
         ) : (
           <RegisterForm
@@ -1786,24 +1851,23 @@ export default function App() {
         }}>
           <VoiceSettings
             defaultVoices={defaultVoiceConfigs}
-            onSave={setVoiceConfigs}
+            onSave={handleVoiceConfigsSave}
           />
         </div>
       )}
-      {currentView === 'timeline' && (
-        <div style={{
-          position: 'fixed',
-          top: 48,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: '#f8f0e6',
-          display: 'flex',
-          overflow: 'hidden'
-        }}>
-          <CollectionsView />
-        </div>
-      )}
+      {/* @@@ Always render timeline to pre-load data and position scroll */}
+      <div style={{
+        position: 'fixed',
+        top: 48,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: '#f8f0e6',
+        display: currentView === 'timeline' ? 'flex' : 'none',
+        overflow: 'hidden'
+      }}>
+        <CollectionsView isVisible={currentView === 'timeline'} />
+      </div>
       {currentView === 'analysis' && (
         <div style={{
           position: 'fixed',
