@@ -48,6 +48,8 @@ def init_db():
     # Run migrations
     if current_version < 1:
         migrate_v1(db)
+    if current_version < 2:
+        migrate_v2(db)
 
     db.commit()
     db.close()
@@ -149,6 +151,20 @@ def migrate_v1(db):
     db.execute("INSERT INTO schema_version (version) VALUES (1)")
 
     print("✅ Migration v1 completed")
+
+def migrate_v2(db):
+    """Add first_login_completed field to user_preferences."""
+    print("📦 Running migration v2: Add first_login_completed field")
+
+    # Add first_login_completed column to user_preferences
+    db.execute("""
+    ALTER TABLE user_preferences ADD COLUMN first_login_completed INTEGER DEFAULT 0
+    """)
+
+    # Record migration
+    db.execute("INSERT INTO schema_version (version) VALUES (2)")
+
+    print("✅ Migration v2 completed")
 
 # ========== User Management ==========
 
@@ -335,7 +351,8 @@ def get_preferences(user_id: int):
     db = get_db()
     try:
         row = db.execute("""
-        SELECT voice_configs_json, meta_prompt, state_config_json, selected_state, updated_at
+        SELECT voice_configs_json, meta_prompt, state_config_json, selected_state,
+               first_login_completed, updated_at
         FROM user_preferences
         WHERE user_id = ?
         """, (user_id,)).fetchone()
@@ -348,6 +365,31 @@ def get_preferences(user_id: int):
             del result['state_config_json']
             return result
         return None
+    finally:
+        db.close()
+
+def set_first_login_completed(user_id: int):
+    """Mark user's first login as completed."""
+    db = get_db()
+    try:
+        # Check if preferences exist
+        existing = db.execute("SELECT user_id FROM user_preferences WHERE user_id = ?", (user_id,)).fetchone()
+
+        if existing:
+            # Update existing
+            db.execute("""
+            UPDATE user_preferences
+            SET first_login_completed = 1, updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = ?
+            """, (user_id,))
+        else:
+            # Insert new
+            db.execute("""
+            INSERT INTO user_preferences (user_id, first_login_completed)
+            VALUES (?, 1)
+            """, (user_id,))
+
+        db.commit()
     finally:
         db.close()
 

@@ -907,6 +907,16 @@ def save_preferences_endpoint(
 
     return {"success": True}
 
+@app.post("/api/mark-first-login-completed")
+def mark_first_login_completed(current_user: dict = Depends(get_current_user)):
+    """
+    Mark user's first login as completed.
+    Called after migration dialog is shown (migrate or skip).
+    """
+    user_id = current_user['user_id']
+    database.set_first_login_completed(user_id)
+    return {"success": True}
+
 # ========== Analysis Reports Endpoints ==========
 
 @app.get("/api/reports")

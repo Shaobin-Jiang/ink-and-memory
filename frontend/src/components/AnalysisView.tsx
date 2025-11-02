@@ -102,7 +102,12 @@ export default function AnalysisView() {
           const grouped: Record<string, any[]> = {};
           for (const session of sessions) {
             const fullSession = await getSession(session.id);
-            let dateKey = session.created_at?.split('T')[0];
+
+            // @@@ BUGFIX: Extract date from timestamp (format: "2025-11-02 10:42:17" or "2025-11-02T10:42:17")
+            // Just take first 10 characters to get "YYYY-MM-DD"
+            let dateKey = session.created_at?.substring(0, 10);
+
+            // Prefer date from session name if it has one
             if (session.name && /^\d{4}-\d{2}-\d{2}/.test(session.name)) {
               dateKey = session.name.split(' - ')[0];
             }

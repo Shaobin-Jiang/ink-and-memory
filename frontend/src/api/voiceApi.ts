@@ -421,3 +421,18 @@ export async function getAnalysisReports(limit: number = 10): Promise<any[]> {
   const data = await response.json();
   return data.reports;
 }
+
+/**
+ * Mark first login as completed (after migration dialog)
+ */
+export async function markFirstLoginCompleted(): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/mark-first-login-completed`, {
+    method: 'POST',
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Mark first login completed failed');
+  }
+}

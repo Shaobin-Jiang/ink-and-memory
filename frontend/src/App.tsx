@@ -370,57 +370,52 @@ export default function App() {
 
   // @@@ Check for localStorage migration after login
   useEffect(() => {
-    console.log('🔍 Migration check:', { isAuthenticated, isLoading });
+    const checkMigration = async () => {
+      if (!isAuthenticated || isLoading) return;
 
-    if (isAuthenticated && !isLoading) {
-      // Check if user has localStorage data that needs migration
-      const hasLocalData =
-        localStorage.getItem(STORAGE_KEYS.EDITOR_STATE) ||
-        localStorage.getItem(STORAGE_KEYS.CALENDAR_ENTRIES) ||
-        localStorage.getItem(STORAGE_KEYS.DAILY_PICTURES) ||
-        localStorage.getItem(STORAGE_KEYS.VOICE_CONFIGS) ||
-        localStorage.getItem(STORAGE_KEYS.META_PROMPT) ||
-        localStorage.getItem(STORAGE_KEYS.STATE_CONFIG) ||
-        localStorage.getItem(STORAGE_KEYS.SELECTED_STATE) ||
-        localStorage.getItem(STORAGE_KEYS.ANALYSIS_REPORTS);
+      try {
+        // Get user preferences from database (includes first_login_completed)
+        const { getPreferences } = await import('./api/voiceApi');
+        const preferences = await getPreferences();
 
-      // Check if migration already done (flag stored after migration)
-      const migrationDone = localStorage.getItem(STORAGE_KEYS.MIGRATION_COMPLETED);
+        // If user has already completed first login, clear localStorage
+        if (preferences?.first_login_completed) {
+          console.log('✅ Returning user, clearing localStorage');
+          // Clear all app data from localStorage (keep only auth token)
+          Object.values(STORAGE_KEYS).forEach(key => {
+            if (key !== STORAGE_KEYS.AUTH_TOKEN) {
+              localStorage.removeItem(key);
+            }
+          });
+          return;
+        }
 
-      console.log('📦 Migration status:', {
-        hasLocalData: !!hasLocalData,
-        migrationDone: !!migrationDone,
-        editorState: !!localStorage.getItem(STORAGE_KEYS.EDITOR_STATE),
-        calendarEntries: !!localStorage.getItem(STORAGE_KEYS.CALENDAR_ENTRIES),
-        dailyPictures: !!localStorage.getItem(STORAGE_KEYS.DAILY_PICTURES)
-      });
+        // First time login - check for localStorage data to migrate
+        const hasLocalData =
+          localStorage.getItem(STORAGE_KEYS.EDITOR_STATE) ||
+          localStorage.getItem(STORAGE_KEYS.CALENDAR_ENTRIES) ||
+          localStorage.getItem(STORAGE_KEYS.DAILY_PICTURES) ||
+          localStorage.getItem(STORAGE_KEYS.VOICE_CONFIGS) ||
+          localStorage.getItem(STORAGE_KEYS.META_PROMPT) ||
+          localStorage.getItem(STORAGE_KEYS.STATE_CONFIG) ||
+          localStorage.getItem(STORAGE_KEYS.SELECTED_STATE) ||
+          localStorage.getItem(STORAGE_KEYS.ANALYSIS_REPORTS);
 
-      // @@@ Handle migration scenarios
-      const hasCalendar = !!localStorage.getItem(STORAGE_KEYS.CALENDAR_ENTRIES);
-      let shouldShowDialog = false;
-
-      // If user explicitly skipped, don't show dialog again
-      if (migrationDone === 'skipped') {
-        console.log('🚫 Migration was skipped by user, not showing dialog');
-        shouldShowDialog = false;
+        if (hasLocalData) {
+          console.log('🔍 First login with localStorage data, showing migration dialog');
+          setShowMigrationDialog(true);
+        } else {
+          // No localStorage data, just mark first login as completed
+          console.log('🔍 First login without localStorage data, marking as completed');
+          const { markFirstLoginCompleted } = await import('./api/voiceApi');
+          await markFirstLoginCompleted();
+        }
+      } catch (error) {
+        console.error('Failed to check migration status:', error);
       }
-      // If migration was marked done but calendar entries still exist, it may have failed
-      else if (hasCalendar && migrationDone === 'true') {
-        console.warn('⚠️ Found calendar entries but migration was marked done - may have failed, forcing re-migration');
-        localStorage.removeItem(STORAGE_KEYS.MIGRATION_COMPLETED);
-        // Re-check immediately after clearing flag
-        shouldShowDialog = !!hasLocalData; // Migration is now not done
-      }
-      // Normal case: show if there's data and migration not done
-      else {
-        shouldShowDialog = !!hasLocalData && !migrationDone;
-      }
+    };
 
-      if (shouldShowDialog) {
-        console.log('✅ Showing migration dialog');
-        setShowMigrationDialog(true);
-      }
-    }
+    checkMigration();
   }, [isAuthenticated, isLoading]);
 
   // Initialize engine
@@ -547,12 +542,20 @@ export default function App() {
 
   // @@@ Auto-save to database for authenticated users
   useEffect(() => {
-    if (!isAuthenticated || !state) return;
+    if (!isAuthenticated || !state || !engineRef.current) return;
 
     const autoSaveTimer = setTimeout(async () => {
       try {
+        // Use currentEntryId if exists, otherwise create new UUID
+        let sessionId = state.currentEntryId;
+        if (!sessionId) {
+          sessionId = crypto.randomUUID();
+          engineRef.current?.setCurrentEntryId(sessionId);
+        }
+
         const { saveSession } = await import('./api/voiceApi');
-        await saveSession('current-session', state, 'Current Session');
+        // Auto-save without name (unsaved draft)
+        await saveSession(sessionId, state);
         console.log('Auto-saved to database');
       } catch (error) {
         console.error('Auto-save failed:', error);
@@ -1097,14 +1100,13 @@ export default function App() {
       // Call backend migration endpoint
       const result = await importLocalData(migrationData);
 
-      // Mark migration as complete
-      localStorage.setItem(STORAGE_KEYS.MIGRATION_COMPLETED, 'true');
+      // Mark first login as completed in database
+      const { markFirstLoginCompleted } = await import('./api/voiceApi');
+      await markFirstLoginCompleted();
 
-      // Clear old localStorage data (keep auth token and migration flag)
-      const keysToKeep: string[] = [STORAGE_KEYS.AUTH_TOKEN, STORAGE_KEYS.MIGRATION_COMPLETED];
-      const allKeys = Object.keys(localStorage);
-      allKeys.forEach(key => {
-        if (!keysToKeep.includes(key)) {
+      // Clear ALL localStorage data (keep only auth token)
+      Object.values(STORAGE_KEYS).forEach(key => {
+        if (key !== STORAGE_KEYS.AUTH_TOKEN) {
           localStorage.removeItem(key);
         }
       });
@@ -1134,10 +1136,24 @@ export default function App() {
     }
   }, []);
 
-  const handleSkipMigration = useCallback(() => {
-    // @@@ Set flag to 'skipped' instead of 'true' to distinguish from successful migration
-    localStorage.setItem(STORAGE_KEYS.MIGRATION_COMPLETED, 'skipped');
-    setShowMigrationDialog(false);
+  const handleSkipMigration = useCallback(async () => {
+    try {
+      // Mark first login as completed in database
+      const { markFirstLoginCompleted } = await import('./api/voiceApi');
+      await markFirstLoginCompleted();
+
+      // Clear ALL localStorage data (keep only auth token)
+      Object.values(STORAGE_KEYS).forEach(key => {
+        if (key !== STORAGE_KEYS.AUTH_TOKEN) {
+          localStorage.removeItem(key);
+        }
+      });
+
+      setShowMigrationDialog(false);
+    } catch (error) {
+      console.error('Failed to skip migration:', error);
+      alert('Failed to skip migration. Please try again.');
+    }
   }, []);
 
   const handleAuthSuccess = useCallback(() => {
