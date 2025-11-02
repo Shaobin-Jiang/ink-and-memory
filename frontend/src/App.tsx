@@ -22,10 +22,13 @@ import ChatWidgetUI from './components/ChatWidgetUI';
 import StateChooser from './components/StateChooser';
 import type { VoiceConfig } from './types/voice';
 import { getVoices, getMetaPrompt, getStateConfig } from './utils/voiceStorage';
-import { getDefaultVoices, chatWithVoice } from './api/voiceApi';
+import { getDefaultVoices, chatWithVoice, importLocalData, generateDailyPicture, saveDailyPicture } from './api/voiceApi';
 import { useMobile } from './utils/mobileDetect';
 import { CommentGroupCard } from './components/CommentCard';
 import { findNormalizedPhrase } from './utils/textNormalize';
+import { useAuth } from './contexts/AuthContext';
+import LoginForm from './components/Auth/LoginForm';
+import RegisterForm from './components/Auth/RegisterForm';
 
 // @@@ Left Toolbar Component - floating toolbelt within left margin
 function LeftToolbar({
@@ -253,6 +256,13 @@ const colorMap: Record<string, { gradient: string; text: string; glow: string }>
 // @@@ Main App Component
 export default function App() {
   const isMobile = useMobile();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  // @@@ Auth screen state
+  const [authScreen, setAuthScreen] = useState<'login' | 'register'>('login');
+  const [showMigrationDialog, setShowMigrationDialog] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
+
   const [currentView, setCurrentView] = useState<'writing' | 'settings' | 'timeline' | 'analysis' | 'about'>('writing');
   const [showCalendarPopup, setShowCalendarPopup] = useState(false);
   const [voiceConfigs, setVoiceConfigs] = useState<Record<string, VoiceConfig>>({});
@@ -346,6 +356,29 @@ export default function App() {
       setStateConfig(getStateConfig());
     }
   }, [currentView]);
+
+  // @@@ Check for localStorage migration after login
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      // Check if user has localStorage data that needs migration
+      const hasLocalData =
+        localStorage.getItem('ink_memory_state') ||
+        localStorage.getItem('calendarEntries') ||
+        localStorage.getItem('dailyPictures') ||
+        localStorage.getItem('voice-configs') ||
+        localStorage.getItem('meta-prompt') ||
+        localStorage.getItem('state-config') ||
+        localStorage.getItem('selected-state') ||
+        localStorage.getItem('analysisReports');
+
+      // Check if migration already done (flag stored after migration)
+      const migrationDone = localStorage.getItem('migration_completed');
+
+      if (hasLocalData && !migrationDone) {
+        setShowMigrationDialog(true);
+      }
+    }
+  }, [isAuthenticated, isLoading]);
 
   // Initialize engine
   useEffect(() => {
@@ -797,6 +830,62 @@ export default function App() {
     setCommentsAligned(prev => !prev);
   }, []);
 
+  // @@@ Handle localStorage migration
+  const handleMigrateData = useCallback(async () => {
+    setIsMigrating(true);
+    try {
+      // Export all localStorage data
+      const migrationData = {
+        currentSession: localStorage.getItem('ink_memory_state'),
+        calendarEntries: localStorage.getItem('calendarEntries'),
+        dailyPictures: localStorage.getItem('dailyPictures'),
+        voiceCustomizations: localStorage.getItem('voice-configs'),
+        metaPrompt: localStorage.getItem('meta-prompt'),
+        stateConfig: localStorage.getItem('state-config'),
+        selectedState: localStorage.getItem('selected-state'),
+        analysisReports: localStorage.getItem('analysisReports'),
+        oldDocument: localStorage.getItem('document')
+      };
+
+      // Call backend migration endpoint
+      const result = await importLocalData(migrationData);
+
+      console.log('✅ Migration complete:', result.imported);
+
+      // Mark migration as complete
+      localStorage.setItem('migration_completed', 'true');
+
+      // Clear old localStorage data (keep auth token and migration flag)
+      const keysToKeep = ['auth_token', 'migration_completed'];
+      const allKeys = Object.keys(localStorage);
+      allKeys.forEach(key => {
+        if (!keysToKeep.includes(key)) {
+          localStorage.removeItem(key);
+        }
+      });
+
+      setShowMigrationDialog(false);
+
+      // Show success message
+      alert(`Migration successful! Imported:\n- ${result.imported.sessions} sessions\n- ${result.imported.pictures} pictures\n- ${result.imported.preferences} preferences\n- ${result.imported.reports} reports`);
+    } catch (error: any) {
+      console.error('Migration failed:', error);
+      alert(`Migration failed: ${error.message}\n\nYou can try again later from Settings.`);
+    } finally {
+      setIsMigrating(false);
+    }
+  }, []);
+
+  const handleSkipMigration = useCallback(() => {
+    localStorage.setItem('migration_completed', 'true');
+    setShowMigrationDialog(false);
+  }, []);
+
+  const handleAuthSuccess = useCallback(() => {
+    // After successful login/register, check for migration
+    // This is handled by the useEffect hook above
+  }, []);
+
   // @@@ Comment interaction handlers
   const handleCommentStar = useCallback((commentId: string) => {
     if (!engineRef.current) return;
@@ -1067,6 +1156,49 @@ export default function App() {
     return <div style={{ whiteSpace: 'pre-wrap' }}>{elements}</div>;
   };
 
+  // @@@ Show loading state while checking auth
+  if (isLoading) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        fontFamily: "'Excalifont', 'Xiaolai', 'Georgia', serif",
+        fontSize: '18px',
+        color: '#666'
+      }}>
+        Loading...
+      </div>
+    );
+  }
+
+  // @@@ Show auth screen if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #f5f0e8 0%, #e8dcc8 100%)',
+        padding: '20px'
+      }}>
+        {authScreen === 'login' ? (
+          <LoginForm
+            onSuccess={handleAuthSuccess}
+            onSwitchToRegister={() => setAuthScreen('register')}
+          />
+        ) : (
+          <RegisterForm
+            onSuccess={handleAuthSuccess}
+            onSwitchToLogin={() => setAuthScreen('login')}
+          />
+        )}
+      </div>
+    );
+  }
+
   if (!state || !engineRef.current) {
     return <div>Loading...</div>;
   }
@@ -1079,6 +1211,106 @@ export default function App() {
 
   return (
     <>
+      {/* @@@ Migration dialog */}
+      {showMigrationDialog && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: '#fffef9',
+            border: '2px solid #d0c4b0',
+            borderRadius: '12px',
+            padding: '32px',
+            maxWidth: '500px',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
+            fontFamily: "'Excalifont', 'Xiaolai', 'Georgia', serif"
+          }}>
+            <h2 style={{
+              margin: '0 0 16px 0',
+              fontSize: '24px',
+              color: '#333',
+              fontWeight: 600
+            }}>
+              Migrate Your Data?
+            </h2>
+            <p style={{
+              margin: '0 0 24px 0',
+              fontSize: '16px',
+              lineHeight: '1.6',
+              color: '#555'
+            }}>
+              We found data in your browser. Would you like to migrate it to your account?
+              This will move all your sessions, pictures, and preferences to the cloud.
+            </p>
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              justifyContent: 'space-between'
+            }}>
+              <button
+                onClick={handleMigrateData}
+                disabled={isMigrating}
+                style={{
+                  flex: 1,
+                  padding: '12px 20px',
+                  border: 'none',
+                  background: isMigrating ? '#ccc' : '#4a90e2',
+                  borderRadius: '6px',
+                  cursor: isMigrating ? 'not-allowed' : 'pointer',
+                  fontSize: '16px',
+                  fontFamily: "'Excalifont', 'Xiaolai', 'Georgia', serif",
+                  color: '#fff',
+                  fontWeight: 600,
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isMigrating) e.currentTarget.style.backgroundColor = '#357abd';
+                }}
+                onMouseLeave={(e) => {
+                  if (!isMigrating) e.currentTarget.style.backgroundColor = '#4a90e2';
+                }}
+              >
+                {isMigrating ? 'Migrating...' : 'Migrate Data'}
+              </button>
+              <button
+                onClick={handleSkipMigration}
+                disabled={isMigrating}
+                style={{
+                  flex: 1,
+                  padding: '12px 20px',
+                  border: '1px solid #d0c4b0',
+                  background: '#fff',
+                  borderRadius: '6px',
+                  cursor: isMigrating ? 'not-allowed' : 'pointer',
+                  fontSize: '16px',
+                  fontFamily: "'Excalifont', 'Xiaolai', 'Georgia', serif",
+                  color: '#666',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isMigrating) e.currentTarget.style.backgroundColor = '#f5f5f5';
+                }}
+                onMouseLeave={(e) => {
+                  if (!isMigrating) e.currentTarget.style.backgroundColor = '#fff';
+                }}
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* @@@ Hide sidebar on mobile */}
       {!isMobile && <LeftSidebar currentView={currentView} onViewChange={setCurrentView} />}
 

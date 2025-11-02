@@ -6,6 +6,20 @@
 const API_BASE = '/ink-and-memory';
 
 /**
+ * Get auth headers for authenticated requests
+ */
+function getAuthHeaders(): HeadersInit {
+  const token = localStorage.getItem('auth_token');
+  if (!token) {
+    throw new Error('Not authenticated');
+  }
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  };
+}
+
+/**
  * Get default voices from backend
  */
 export async function getDefaultVoices(): Promise<any> {
@@ -202,4 +216,213 @@ export async function generateDailyPicture(allNotes: string): Promise<{ image_ba
   }
 
   throw new Error('Image generation failed - no image in response');
+}
+
+// ========== Authenticated Endpoints (require login) ==========
+
+/**
+ * Import localStorage data to database (one-time migration)
+ */
+export async function importLocalData(data: {
+  currentSession?: string;
+  calendarEntries?: string;
+  dailyPictures?: string;
+  voiceCustomizations?: string;
+  metaPrompt?: string;
+  stateConfig?: string;
+  selectedState?: string;
+  analysisReports?: string;
+  oldDocument?: string;
+}): Promise<{ success: boolean; imported: any }> {
+  const response = await fetch(`${API_BASE}/api/import-local-data`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data)
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Import failed');
+  }
+
+  return await response.json();
+}
+
+/**
+ * Save session to database
+ */
+export async function saveSession(sessionId: string, editorState: any, name?: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/sessions`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      session_id: sessionId,
+      editor_state: editorState,
+      name
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Save session failed');
+  }
+}
+
+/**
+ * List all sessions
+ */
+export async function listSessions(): Promise<any[]> {
+  const response = await fetch(`${API_BASE}/api/sessions`, {
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'List sessions failed');
+  }
+
+  const data = await response.json();
+  return data.sessions;
+}
+
+/**
+ * Get a specific session
+ */
+export async function getSession(sessionId: string): Promise<any> {
+  const response = await fetch(`${API_BASE}/api/sessions/${sessionId}`, {
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Get session failed');
+  }
+
+  return await response.json();
+}
+
+/**
+ * Delete a session
+ */
+export async function deleteSession(sessionId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/sessions/${sessionId}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Delete session failed');
+  }
+}
+
+/**
+ * Save daily picture
+ */
+export async function saveDailyPicture(date: string, imageBase64: string, prompt: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/pictures`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      date,
+      image_base64: imageBase64,
+      prompt
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Save picture failed');
+  }
+}
+
+/**
+ * Get daily pictures
+ */
+export async function getDailyPictures(limit: number = 30): Promise<any[]> {
+  const response = await fetch(`${API_BASE}/api/pictures?limit=${limit}`, {
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Get pictures failed');
+  }
+
+  const data = await response.json();
+  return data.pictures;
+}
+
+/**
+ * Save user preferences
+ */
+export async function savePreferences(preferences: {
+  voice_configs?: any;
+  meta_prompt?: string;
+  state_config?: any;
+  selected_state?: string;
+}): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/preferences`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(preferences)
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Save preferences failed');
+  }
+}
+
+/**
+ * Get user preferences
+ */
+export async function getPreferences(): Promise<any> {
+  const response = await fetch(`${API_BASE}/api/preferences`, {
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Get preferences failed');
+  }
+
+  return await response.json();
+}
+
+/**
+ * Save analysis report
+ */
+export async function saveAnalysisReport(reportType: string, reportData: any, allNotesText?: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/reports`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      report_type: reportType,
+      report_data: reportData,
+      all_notes_text: allNotesText
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Save report failed');
+  }
+}
+
+/**
+ * Get analysis reports
+ */
+export async function getAnalysisReports(limit: number = 10): Promise<any[]> {
+  const response = await fetch(`${API_BASE}/api/reports?limit=${limit}`, {
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Get reports failed');
+  }
+
+  const data = await response.json();
+  return data.reports;
 }

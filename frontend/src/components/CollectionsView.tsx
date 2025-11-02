@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Commentor } from '../engine/EditorEngine';
 import { findNormalizedPhrase } from '../utils/textNormalize';
+import { useAuth } from '../contexts/AuthContext';
 
 // @@@ TypeScript interfaces
 interface TimelineDay {
@@ -184,6 +185,7 @@ function getAllNotesFromSessions(): string {
 
 // @@@ Timeline page - combines pictures and starred comments by date
 function TimelinePage() {
+  const { isAuthenticated } = useAuth();
   const [starredComments, setStarredComments] = useState<Commentor[]>([]);
   const [pictures, setPictures] = useState<Array<{ date: string; base64: string; prompt: string }>>([]);
   const [generatingForDate, setGeneratingForDate] = useState<string | null>(null);
@@ -259,6 +261,12 @@ function TimelinePage() {
   }, []);
 
   const handleGenerateForDate = async (dateStr: string) => {
+    // @@@ Block image generation for guests
+    if (!isAuthenticated) {
+      alert('Please log in to generate images. Image generation requires authentication.');
+      return;
+    }
+
     setGeneratingForDate(dateStr);
 
     try {
@@ -268,7 +276,7 @@ function TimelinePage() {
         return;
       }
 
-      const { generateDailyPicture } = await import('../api/voiceApi');
+      const { generateDailyPicture, saveDailyPicture } = await import('../api/voiceApi');
       const { image_base64, prompt } = await generateDailyPicture(allNotes);
 
       const newPicture = {
@@ -276,6 +284,10 @@ function TimelinePage() {
         base64: image_base64,
         prompt: prompt
       };
+
+      // @@@ Save to database (requires auth)
+      const pictureDate = new Date(newPicture.date).toISOString().split('T')[0]; // YYYY-MM-DD format
+      await saveDailyPicture(pictureDate, image_base64, prompt);
 
       // @@@ Overwrite existing picture for this date instead of adding new
       const normalizedNewDate = formatDate(newPicture.date);
