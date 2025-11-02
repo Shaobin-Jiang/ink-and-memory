@@ -6,6 +6,7 @@ import {
   deleteEntry,
   type CalendarEntry
 } from '../utils/calendarStorage';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Props {
   onLoadEntry: (entry: CalendarEntry) => void;
@@ -13,14 +14,60 @@ interface Props {
 }
 
 export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
+  const { isAuthenticated } = useAuth();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(getTodayKey());
-  const [calendarData, setCalendarData] = useState(getCalendarData());
+  const [calendarData, setCalendarData] = useState<Record<string, CalendarEntry[]>>({});
 
-  // Refresh calendar data when component mounts or updates
+  // @@@ Load calendar data from database if authenticated, localStorage if guest
   useEffect(() => {
-    setCalendarData(getCalendarData());
-  }, []);
+    const loadData = async () => {
+      if (isAuthenticated) {
+        try {
+          // Load from database - sessions imported during migration
+          const { listSessions, getSession } = await import('../api/voiceApi');
+          const sessions = await listSessions();
+
+          // Group sessions by date (extract from session name which has format "YYYY-MM-DD - FirstLine")
+          const grouped: Record<string, CalendarEntry[]> = {};
+
+          for (const session of sessions) {
+            const fullSession = await getSession(session.id);
+
+            // Extract date from name or use created_at
+            let dateKey = session.created_at?.split('T')[0] || getTodayKey();
+
+            // If name starts with YYYY-MM-DD format, use that
+            if (session.name && /^\d{4}-\d{2}-\d{2}/.test(session.name)) {
+              dateKey = session.name.split(' - ')[0];
+            }
+
+            if (!grouped[dateKey]) {
+              grouped[dateKey] = [];
+            }
+
+            grouped[dateKey].push({
+              id: session.id,
+              timestamp: new Date(session.created_at || Date.now()).getTime(),
+              state: fullSession.editor_state,
+              firstLine: session.name || 'Untitled'
+            });
+          }
+
+          setCalendarData(grouped);
+        } catch (error) {
+          console.error('Failed to load calendar from database:', error);
+          // Fallback to localStorage
+          setCalendarData(getCalendarData());
+        }
+      } else {
+        // Guest mode: load from localStorage
+        setCalendarData(getCalendarData());
+      }
+    };
+
+    loadData();
+  }, [isAuthenticated]);
 
   const today = getTodayKey();
   const datesWithEntries = Object.keys(calendarData);
@@ -64,10 +111,45 @@ export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
     setSelectedDate(dateKey);
   };
 
-  const handleDeleteEntry = (dateKey: string, entryId: string) => {
+  const handleDeleteEntry = async (dateKey: string, entryId: string) => {
     if (confirm('Delete this entry?')) {
-      deleteEntry(dateKey, entryId);
-      setCalendarData(getCalendarData());
+      if (isAuthenticated) {
+        try {
+          // Delete from database
+          const { deleteSession } = await import('../api/voiceApi');
+          await deleteSession(entryId);
+
+          // Reload calendar data
+          const { listSessions, getSession } = await import('../api/voiceApi');
+          const sessions = await listSessions();
+          const grouped: Record<string, CalendarEntry[]> = {};
+
+          for (const session of sessions) {
+            const fullSession = await getSession(session.id);
+            let dateKey = session.created_at?.split('T')[0] || getTodayKey();
+            if (session.name && /^\d{4}-\d{2}-\d{2}/.test(session.name)) {
+              dateKey = session.name.split(' - ')[0];
+            }
+            if (!grouped[dateKey]) {
+              grouped[dateKey] = [];
+            }
+            grouped[dateKey].push({
+              id: session.id,
+              timestamp: new Date(session.created_at || Date.now()).getTime(),
+              state: fullSession.editor_state,
+              firstLine: session.name || 'Untitled'
+            });
+          }
+          setCalendarData(grouped);
+        } catch (error) {
+          console.error('Failed to delete from database:', error);
+          alert('Failed to delete entry');
+        }
+      } else {
+        // Guest mode: delete from localStorage
+        deleteEntry(dateKey, entryId);
+        setCalendarData(getCalendarData());
+      }
     }
   };
 

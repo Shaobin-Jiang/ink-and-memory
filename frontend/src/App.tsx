@@ -370,6 +370,8 @@ export default function App() {
 
   // @@@ Check for localStorage migration after login
   useEffect(() => {
+    console.log('🔍 Migration check:', { isAuthenticated, isLoading });
+
     if (isAuthenticated && !isLoading) {
       // Check if user has localStorage data that needs migration
       const hasLocalData =
@@ -385,7 +387,24 @@ export default function App() {
       // Check if migration already done (flag stored after migration)
       const migrationDone = localStorage.getItem(STORAGE_KEYS.MIGRATION_COMPLETED);
 
+      console.log('📦 Migration status:', {
+        hasLocalData: !!hasLocalData,
+        migrationDone: !!migrationDone,
+        editorState: !!localStorage.getItem(STORAGE_KEYS.EDITOR_STATE),
+        calendarEntries: !!localStorage.getItem(STORAGE_KEYS.CALENDAR_ENTRIES),
+        dailyPictures: !!localStorage.getItem(STORAGE_KEYS.DAILY_PICTURES)
+      });
+
+      // @@@ TEMPORARY: Force re-migration if calendar entries exist but weren't imported
+      // Check if calendar entries exist but no sessions in database (migration failed)
+      const hasCalendar = !!localStorage.getItem(STORAGE_KEYS.CALENDAR_ENTRIES);
+      if (hasCalendar && migrationDone) {
+        console.warn('⚠️ Found calendar entries but migration was marked done - forcing re-migration');
+        localStorage.removeItem(STORAGE_KEYS.MIGRATION_COMPLETED);
+      }
+
       if (hasLocalData && !migrationDone) {
+        console.log('✅ Showing migration dialog');
         setShowMigrationDialog(true);
       }
     }
