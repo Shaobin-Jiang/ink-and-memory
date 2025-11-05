@@ -22,12 +22,15 @@ import ChatWidgetUI from './components/ChatWidgetUI';
 import StateChooser from './components/StateChooser';
 import type { VoiceConfig, StateConfig } from './types/voice';
 import { getVoices, getMetaPrompt, getStateConfig } from './utils/voiceStorage';
-import { getDefaultVoices, chatWithVoice, importLocalData } from './api/voiceApi';
+import { getDefaultVoices, chatWithVoice, importLocalData, getSuggestion, type VoiceInspiration } from './api/voiceApi';
 import { useMobile } from './utils/mobileDetect';
 import { CommentGroupCard } from './components/CommentCard';
 import { findNormalizedPhrase } from './utils/textNormalize';
 import { useAuth } from './contexts/AuthContext';
 import LoginForm from './components/Auth/LoginForm';
+
+// @@@ DEBUG: Verify new code is loaded
+console.log('🚀🚀🚀 APP.TSX LOADED - NEW CODE WITH SUGGESTIONS 🚀🚀🚀');
 import RegisterForm from './components/Auth/RegisterForm';
 import { STORAGE_KEYS } from './constants/storageKeys';
 
@@ -282,6 +285,11 @@ export default function App() {
   // @@@ Comment expansion state (for action toolbar + chat dropdown)
   const [expandedCommentId, setExpandedCommentId] = useState<string | null>(null);
   const [commentChatProcessing, setCommentChatProcessing] = useState<Set<string>>(new Set());
+
+  // @@@ Writing suggestion state
+  const [currentInspiration, setCurrentInspiration] = useState<VoiceInspiration | null>(null);
+  const [suggestionSnapshot, setSuggestionSnapshot] = useState<string>('');
+  const suggestionTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // @@@ Trigger re-render when returning to writing view to recalculate comment positions
   useEffect(() => {
@@ -807,11 +815,22 @@ export default function App() {
 
   // @@@ Per-cell text change handler
   const handleTextChange = useCallback((cellId: string, newText: string) => {
+    console.log('🔥🔥🔥 handleTextChange CALLED!', cellId, newText.length);
     setLocalTexts(prev => {
       const next = new Map(prev);
       next.set(cellId, newText);
       return next;
     });
+
+    // @@@ Clear inspiration instantly on typing
+    setCurrentInspiration(null);
+    setSuggestionSnapshot('');
+
+    // @@@ Clear existing suggestion timer
+    if (suggestionTimerRef.current) {
+      clearTimeout(suggestionTimerRef.current);
+      suggestionTimerRef.current = null;
+    }
 
     // @@@ Auto-resize textarea to prevent internal scrolling
     const textarea = textareaRefs.current.get(cellId);
@@ -831,7 +850,67 @@ export default function App() {
     if (!composingCells.has(cellId) && engineRef.current) {
       engineRef.current.updateTextCell(cellId, newText);
     }
-  }, [composingCells, dropdownVisible, dropdownTriggerCellId]);
+
+    // @@@ Start 5-second debounce timer for suggestions
+    console.log('⏱️  Starting 5-second suggestion timer');
+    suggestionTimerRef.current = setTimeout(async () => {
+      console.log('⏰ Timer fired! Fetching suggestion...');
+
+      // Get all text from all text cells
+      const allText = state?.cells
+        .filter(c => c.type === 'text')
+        .map(c => (c as TextCell).content)
+        .join('') || '';
+
+      console.log(`📝 Text length: ${allText.length} chars`);
+
+      if (allText.trim().length < 10) {
+        console.log('❌ Text too short, skipping suggestion');
+        return;
+      }
+
+      // Capture snapshot for validation
+      const snapshot = allText;
+      setSuggestionSnapshot(snapshot);
+
+      try {
+        const metaPrompt = getMetaPrompt();
+        const statePrompt = selectedState && stateConfig.states[selectedState]
+          ? stateConfig.states[selectedState].prompt
+          : '';
+
+        console.log('🚀 Calling getSuggestion API...');
+        const suggestion = await getSuggestion(allText, metaPrompt, statePrompt);
+        console.log('✅ Got suggestion:', suggestion);
+
+        // @@@ Validate text hasn't changed since request was sent
+        const currentCells = engineRef.current?.getState().cells;
+        const currentText = currentCells
+          ?.filter(c => c.type === 'text')
+          .map(c => (c as TextCell).content)
+          .join('') || '';
+
+        console.log('📊 Comparison:', {
+          snapshotLength: snapshot.length,
+          currentLength: currentText.length,
+          matches: currentText === snapshot
+        });
+
+        if (suggestion && currentText === snapshot) {
+          console.log('✨ Setting inspiration:', suggestion);
+          setCurrentInspiration(suggestion);
+        } else {
+          if (!suggestion) {
+            console.log('⚠️  No inspiration returned from backend');
+          } else {
+            console.log('⚠️  Text changed, discarding inspiration');
+          }
+        }
+      } catch (error) {
+        console.error('❌ Failed to get inspiration:', error);
+      }
+    }, 5000);
+  }, [composingCells, dropdownVisible, dropdownTriggerCellId, state, selectedState, stateConfig]);
 
   // @@@ Per-cell composition handlers
   const handleCompositionStart = useCallback((cellId: string) => {
@@ -1919,6 +1998,7 @@ export default function App() {
                               height: 'auto'
                             }}
                           />
+
                         </div>
                       );
                     } else if (cell.type === 'widget' && cell.widgetType === 'chat') {
@@ -2249,6 +2329,74 @@ export default function App() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* @@@ Floating Inspiration Bubble - appears bottom-right when inspiration is available */}
+      {currentInspiration && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: isMobile ? '60px' : '20px',
+            right: isMobile ? '10px' : '20px',
+            maxWidth: isMobile ? 'calc(100% - 20px)' : '400px',
+            backgroundColor: '#fff',
+            borderRadius: '12px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+            padding: '16px',
+            display: 'flex',
+            gap: '12px',
+            alignItems: 'start',
+            zIndex: 1000,
+            animation: 'slideIn 0.3s ease-out'
+          }}
+        >
+          {/* Voice Icon */}
+          <div
+            style={{
+              fontSize: '28px',
+              flexShrink: 0
+            }}
+          >
+            {React.createElement(iconMap[currentInspiration.icon as keyof typeof iconMap] || FaBrain)}
+          </div>
+
+          {/* Inspiration Content */}
+          <div style={{ flex: 1 }}>
+            <div style={{
+              fontWeight: 'bold',
+              marginBottom: '6px',
+              fontSize: '14px',
+              color: '#555'
+            }}>
+              {currentInspiration.voice}
+            </div>
+            <div style={{
+              fontSize: '15px',
+              lineHeight: '1.5',
+              color: '#333'
+            }}>
+              {currentInspiration.inspiration}
+            </div>
+          </div>
+
+          {/* Close button */}
+          <button
+            onClick={() => setCurrentInspiration(null)}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              fontSize: '18px',
+              color: '#999',
+              padding: '0',
+              width: '24px',
+              height: '24px',
+              flexShrink: 0
+            }}
+          >
+            ×
+          </button>
         </div>
       )}
 

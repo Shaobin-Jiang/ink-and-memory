@@ -406,6 +406,49 @@ export async function getPreferences(): Promise<any> {
 }
 
 /**
+ * Get writing inspiration from a voice persona
+ */
+export interface VoiceInspiration {
+  inspiration: string;
+  voice: string;
+  voice_key: string;
+  icon: string;
+  color: string;
+}
+
+export async function getSuggestion(text: string, metaPrompt?: string, statePrompt?: string): Promise<VoiceInspiration | null> {
+  const response = await fetch(`${API_BASE}/api/suggest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text,
+      meta_prompt: metaPrompt || '',
+      state_prompt: statePrompt || ''
+    })
+  });
+
+  if (!response.ok) {
+    console.error('Suggestion request failed');
+    return null;
+  }
+
+  const data = await response.json();
+
+  // @@@ PolyCLI trigger-sync wraps the session result in data.result
+  if (data.result && data.result.success && data.result.inspiration) {
+    return {
+      inspiration: data.result.inspiration,
+      voice: data.result.voice,
+      voice_key: data.result.voice_key,
+      icon: data.result.icon,
+      color: data.result.color
+    };
+  }
+
+  return null;
+}
+
+/**
  * Save analysis report
  */
 export async function saveAnalysisReport(reportType: string, reportData: any, allNotesText?: string): Promise<void> {

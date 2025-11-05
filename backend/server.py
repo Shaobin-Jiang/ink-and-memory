@@ -20,6 +20,79 @@ import auth
 # ========== Session Definitions (PolyCLI) ==========
 
 @session_def(
+    name="Get Writing Suggestion",
+    description="Get AI-powered writing inspiration from a voice persona",
+    params={
+        "text": {"type": "str"},
+        "meta_prompt": {"type": "str"},
+        "state_prompt": {"type": "str"}
+    },
+    category="Writing"
+)
+def get_writing_suggestion(text: str, meta_prompt: str = "", state_prompt: str = ""):
+    """Generate writing inspiration from a random voice persona."""
+    print(f"\n{'='*60}")
+    print(f"✍️  get_writing_suggestion() called")
+    print(f"   Text length: {len(text)} chars")
+    print(f"{'='*60}\n")
+
+    if not text or len(text.strip()) < 10:
+        return {"success": False, "error": "Text too short"}
+
+    # @@@ Pick a random voice persona to deliver inspiration
+    import random
+    from config import VOICE_ARCHETYPES
+
+    voice_key = random.choice(list(VOICE_ARCHETYPES.keys()))
+    voice_info = VOICE_ARCHETYPES[voice_key]
+
+    print(f"🎭 Selected voice: {voice_info['name']} ({voice_key})")
+
+    agent = PolyAgent(id="writing-suggester")
+
+    # Build system prompt - voice gives inspiration, not continuation
+    system_prompt = f"""You are {voice_info['name']}, an inner voice persona.
+Your role: {voice_info['tagline']}
+
+Read the user's writing and offer a brief, inspiring comment to help them continue.
+Be encouraging, insightful, or thought-provoking (1-2 sentences).
+Speak in the voice's characteristic style."""
+
+    if state_prompt:
+        system_prompt += f"\n\nContext: {state_prompt}"
+
+    if meta_prompt:
+        system_prompt += f"\n\nStyle guide: {meta_prompt}"
+
+    user_prompt = f"""The user wrote:
+
+{text}
+
+Offer a brief, inspiring comment to help them continue writing (1-2 sentences)."""
+
+    # Generate inspiration
+    print(f"📤 Calling agent.run() with model='claude-haiku-4.5'...")
+    result = agent.run(user_prompt, system_prompt=system_prompt, model='claude-haiku-4.5', cli="no-tools", tracked=True)
+
+    if not result.is_success or not result.content:
+        print(f"⚠️  Failed to generate inspiration")
+        inspiration = None
+    else:
+        inspiration = result.content.strip()
+        print(f"✅ Got inspiration: {inspiration[:100]}...")
+
+    print(f"\n📦 Returning voice inspiration\n")
+
+    return {
+        "success": True,
+        "inspiration": inspiration,
+        "voice": voice_info['name'],
+        "voice_key": voice_key,
+        "icon": voice_info['icon'],
+        "color": voice_info['color']
+    }
+
+@session_def(
     name="Chat with Voice",
     description="Have a conversation with a specific inner voice persona",
     params={
@@ -970,6 +1043,25 @@ def save_preferences_endpoint(
 
     return {"success": True}
 
+@app.post("/api/suggest")
+async def suggest_api(request_data: dict):
+    """
+    @@@ Get writing continuation suggestions (sync API).
+
+    Uses PolyCLI's sync API internally - no polling needed!
+    """
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "http://localhost:8765/polycli/api/trigger-sync",
+            json={
+                "session_id": "get_writing_suggestion",
+                "params": request_data,
+                "timeout": 30.0
+            },
+            timeout=35.0
+        )
+        return response.json()
+
 @app.post("/api/mark-first-login-completed")
 def mark_first_login_completed(current_user: dict = Depends(get_current_user)):
     """
@@ -1146,6 +1238,7 @@ if __name__ == "__main__":
     print("    POST /api/analyze-echoes  - Find themes (sync)")
     print("    POST /api/analyze-traits  - Identify traits (sync)")
     print("    POST /api/analyze-patterns - Find patterns (sync)")
+    print("    POST /api/suggest         - Get writing suggestions (sync)")
     print("    GET  /api/default-voices  - Get voice configs")
     print("\n  PolyCLI Control Panel:")
     print("    /polycli                  - Control panel UI")
