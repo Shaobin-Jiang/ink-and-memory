@@ -9,7 +9,6 @@ export interface VoiceConfig {
 export interface UserState {
   name: string;
   prompt: string;
-  greeting: string;
 }
 
 export interface StateConfig {
