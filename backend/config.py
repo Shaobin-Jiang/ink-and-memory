@@ -1,4 +1,6 @@
-"""Voice archetypes configuration - inspired by Disco Elysium."""
+"""Voice archetypes configuration - Echo system."""
+
+import os
 
 # Model to use for voice analysis
 MODEL = "claude-haiku-4.5"
@@ -22,72 +24,53 @@ IMAGE_MAX_TOKENS = 1000
 IMAGE_DESCRIPTION_MAX_TOKENS = 500
 IMAGE_DESCRIPTION_TIMEOUT = 30
 
-# Voice archetypes (Disco Elysium skills adapted for general writing)
+# @@@ Helper function to load voice prompts from files
+def _load_prompt(filename):
+    """Load prompt from prompts/ directory."""
+    prompt_path = os.path.join(os.path.dirname(__file__), "prompts", filename)
+    try:
+        with open(prompt_path, 'r', encoding='utf-8') as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return ""
+
+# Voice archetypes (Echo system - 6 Chinese voice personas)
 VOICE_ARCHETYPES = {
-    "Logic": {
-        "tagline": "Wield raw intellectual power. Deduce the world.",
-        "icon": "brain",
-        "color": "blue"
-    },
-    "Rhetoric": {
-        "tagline": "Practice the art of persuasion. Enjoy rigorous intellectual discourse.",
-        "icon": "lightbulb",
-        "color": "purple"
-    },
-    "Drama": {
-        "tagline": "Play the actor. Lie and detect lies.",
-        "icon": "masks",
-        "color": "pink"
-    },
-    "Conceptualization": {
-        "tagline": "Understand creativity. See Art in the world.",
-        "icon": "cloud",
-        "color": "purple"
-    },
-    "Volition": {
-        "tagline": "Hold yourself together. Keep your Morale up.",
-        "icon": "shield",
-        "color": "green"
-    },
-    "Inland Empire": {
-        "tagline": "Hunches and gut feelings. Dreams in waking life.",
-        "icon": "compass",
-        "color": "purple"
-    },
-    "Empathy": {
-        "tagline": "Understand others. Work your mirror neurons.",
+    "holder": {
+        "name": "接纳者 (The Holder)",
+        "tagline": _load_prompt("holder.md"),
         "icon": "heart",
         "color": "pink"
     },
-    "Authority": {
-        "tagline": "Intimidate the public. Assert yourself.",
+    "unpacker": {
+        "name": "拆解者 (The Unpacker)",
+        "tagline": _load_prompt("unpacker.md"),
+        "icon": "brain",
+        "color": "blue"
+    },
+    "starter": {
+        "name": "启动者 (The Starter)",
+        "tagline": _load_prompt("starter.md"),
         "icon": "fist",
         "color": "yellow"
     },
-    "Electrochemistry": {
-        "tagline": "Go to party planet. Love and be loved by drugs.",
-        "icon": "fire",
-        "color": "pink"
-    },
-    "Shivers": {
-        "tagline": "Raise the hair on your neck. Tune in to the city.",
-        "icon": "wind",
-        "color": "blue"
-    },
-    "Half Light": {
-        "tagline": "Let the body take control. Threaten people.",
-        "icon": "question",
-        "color": "yellow"
-    },
-    "Perception": {
-        "tagline": "See, hear and smell everything. Let no detail go unnoticed.",
+    "mirror": {
+        "name": "照镜者 (The Mirror)",
+        "tagline": _load_prompt("mirror.md"),
         "icon": "eye",
         "color": "green"
     },
-    "Composure": {
-        "tagline": "Straighten your back. Keep your poker face.",
-        "icon": "shield",
-        "color": "blue"
+    "weaver": {
+        "name": "连接者 (The Weaver)",
+        "tagline": _load_prompt("weaver.md"),
+        "icon": "compass",
+        "color": "purple"
+    },
+    "absurdist": {
+        "name": "幽默者 (The Absurdist)",
+        "tagline": _load_prompt("absurdist.md"),
+        "icon": "masks",
+        "color": "pink"
     }
 }
 
