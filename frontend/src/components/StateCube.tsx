@@ -5,6 +5,7 @@ interface State {
   cn: string;
   en: string;
   locked: boolean;
+  isEmpty?: boolean;  // @@@ Mark empty grid positions (not displayed)
 }
 
 interface CubeFace {
@@ -138,12 +139,51 @@ const FACE_ORIENTATIONS: Record<string, Quaternion> = {
   bottom: Quaternion.fromAxisAngle({ x: 1, y: 0, z: 0 }, -Math.PI / 2)  // Swapped
 };
 
-export function StateCube() {
+interface StateCubeProps {
+  onStateSelect?: (stateId: string) => void;
+  stateConfig: { states: Record<string, { name: string; prompt: string }> };
+}
+
+export function StateCube({ onStateSelect, stateConfig }: StateCubeProps) {
   const [rotation, setRotation] = useState(() => FACE_ORIENTATIONS.front);
   const [isDragging, setIsDragging] = useState(false);
   const [isSnapping, setIsSnapping] = useState(false);
+  const [clickedState, setClickedState] = useState<string | null>(null);
   const dragStartRef = useRef({ x: 0, y: 0, rotation: Quaternion.identity() });
   const snapAnimationRef = useRef<number | null>(null);
+
+  // @@@ Get states from config (only first 3 for middle row)
+  const configStates = Object.entries(stateConfig.states).slice(0, 3).map(([id, data]) => ({
+    id,
+    cn: data.name,
+    en: '',
+    locked: false
+  }));
+
+  // @@@ Create 9-item grid with states only in middle row (indices 3, 4, 5)
+  const createGridStates = () => {
+    const grid = Array(9).fill(null).map((_, i) => ({
+      id: `empty-${i}`,
+      cn: '',
+      en: '',
+      locked: false,
+      isEmpty: true
+    }));
+
+    // Place actual states in middle row (indices 3, 4, 5)
+    if (configStates.length > 0) {
+      grid[3] = { ...configStates[0], isEmpty: false };
+      if (configStates.length > 1) grid[4] = { ...configStates[1], isEmpty: false };
+      if (configStates.length > 2) grid[5] = { ...configStates[2], isEmpty: false };
+    } else {
+      // Fallback defaults in middle row
+      grid[3] = { id: 'happy', cn: 'Happy', en: '', locked: false, isEmpty: false };
+      grid[4] = { id: 'ok', cn: 'OK', en: '', locked: false, isEmpty: false };
+      grid[5] = { id: 'unhappy', cn: 'Unhappy', en: '', locked: false, isEmpty: false };
+    }
+
+    return grid;
+  };
 
   // @@@ Define 6 faces with 9 states each
   const faces: CubeFace[] = [
@@ -151,17 +191,7 @@ export function StateCube() {
       name: 'front',
       unlocked: true,
       color: '#a3d5ff',
-      states: [
-        { id: 'calm', cn: '平静', en: 'Calm', locked: false },
-        { id: 'focused', cn: '专注', en: 'Focused', locked: false },
-        { id: 'joyful', cn: '愉悦', en: 'Joyful', locked: false },
-        { id: 'confused', cn: '困惑', en: 'Confused', locked: false },
-        { id: 'tired', cn: '疲惫', en: 'Tired', locked: false },
-        { id: 'curious', cn: '好奇', en: 'Curious', locked: false },
-        { id: 'anxious', cn: '焦虑', en: 'Anxious', locked: false },
-        { id: 'angry', cn: '愤怒', en: 'Angry', locked: false },
-        { id: 'sad', cn: '悲伤', en: 'Sad', locked: false },
-      ]
+      states: createGridStates()
     },
     {
       name: 'back',
@@ -169,8 +199,8 @@ export function StateCube() {
       color: '#ffb3d9',
       states: Array(9).fill(null).map((_, i) => ({
         id: `back-${i}`,
-        cn: '🔒',
-        en: 'Locked',
+        cn: '?',
+        en: '',
         locked: true
       }))
     },
@@ -180,8 +210,8 @@ export function StateCube() {
       color: '#b3ffb3',
       states: Array(9).fill(null).map((_, i) => ({
         id: `left-${i}`,
-        cn: '🔒',
-        en: 'Locked',
+        cn: '?',
+        en: '',
         locked: true
       }))
     },
@@ -191,8 +221,8 @@ export function StateCube() {
       color: '#ffff43',
       states: Array(9).fill(null).map((_, i) => ({
         id: `right-${i}`,
-        cn: '🔒',
-        en: 'Locked',
+        cn: '?',
+        en: '',
         locked: true
       }))
     },
@@ -202,8 +232,8 @@ export function StateCube() {
       color: '#ddb3ff',
       states: Array(9).fill(null).map((_, i) => ({
         id: `top-${i}`,
-        cn: '🔒',
-        en: 'Locked',
+        cn: '?',
+        en: '',
         locked: true
       }))
     },
@@ -213,8 +243,8 @@ export function StateCube() {
       color: '#ffd4a3',
       states: Array(9).fill(null).map((_, i) => ({
         id: `bottom-${i}`,
-        cn: '🔒',
-        en: 'Locked',
+        cn: '?',
+        en: '',
         locked: true
       }))
     }
@@ -361,6 +391,47 @@ export function StateCube() {
     };
   }, []);
 
+  // @@@ Simple SVG icon generator for each state
+  const getStateIcon = (stateId: string): JSX.Element => {
+    const iconProps = { width: 40, height: 40, viewBox: "0 0 100 100", style: { margin: '0 auto' } };
+
+    switch(stateId.toLowerCase()) {
+      case 'happy':
+        return (
+          <svg {...iconProps}>
+            <circle cx="50" cy="50" r="40" fill="none" stroke="#FFD93D" strokeWidth="6"/>
+            <path d="M 35 60 Q 50 75 65 60" fill="none" stroke="#FFD93D" strokeWidth="6" strokeLinecap="round"/>
+            <circle cx="38" cy="40" r="4" fill="#FFD93D"/>
+            <circle cx="62" cy="40" r="4" fill="#FFD93D"/>
+          </svg>
+        );
+      case 'ok':
+        return (
+          <svg {...iconProps}>
+            <circle cx="50" cy="50" r="40" fill="none" stroke="#95D5B2" strokeWidth="6"/>
+            <line x1="35" y1="60" x2="65" y2="60" stroke="#95D5B2" strokeWidth="6" strokeLinecap="round"/>
+            <circle cx="38" cy="40" r="4" fill="#95D5B2"/>
+            <circle cx="62" cy="40" r="4" fill="#95D5B2"/>
+          </svg>
+        );
+      case 'unhappy':
+        return (
+          <svg {...iconProps}>
+            <circle cx="50" cy="50" r="40" fill="none" stroke="#A8DADC" strokeWidth="6"/>
+            <path d="M 35 65 Q 50 50 65 65" fill="none" stroke="#A8DADC" strokeWidth="6" strokeLinecap="round"/>
+            <circle cx="38" cy="40" r="4" fill="#A8DADC"/>
+            <circle cx="62" cy="40" r="4" fill="#A8DADC"/>
+          </svg>
+        );
+      default:
+        return (
+          <svg {...iconProps}>
+            <circle cx="50" cy="50" r="35" fill="none" stroke="#999" strokeWidth="4"/>
+          </svg>
+        );
+    }
+  };
+
   const renderFace = (face: CubeFace, transform: string) => {
     return (
       <div
@@ -373,6 +444,7 @@ export function StateCube() {
           background: face.unlocked
             ? `linear-gradient(135deg, ${face.color}40, ${face.color}80)`
             : 'linear-gradient(135deg, #ccc, #999)',
+          opacity: face.unlocked ? 1 : 0.5,  // @@@ Semi-transparent locked faces
           border: '2px solid rgba(0,0,0,0.1)',
           borderRadius: '8px',
           padding: '10px',
@@ -383,47 +455,88 @@ export function StateCube() {
           gap: '8px'
         }}
       >
-        {face.states.map((state, idx) => (
-          <div
-            key={state.id}
-            style={{
-              background: state.locked
-                ? 'rgba(255,255,255,0.3)'
-                : 'rgba(255,255,255,0.6)',
-              borderRadius: '4px',
-              padding: '8px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '12px',
-              fontFamily: "'Excalifont', 'Xiaolai', sans-serif",
-              cursor: state.locked ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s ease',
-              opacity: state.locked ? 0.5 : 1,
-              userSelect: 'none'
-            }}
-            onMouseEnter={(e) => {
-              if (!state.locked) {
-                e.currentTarget.style.transform = 'scale(1.05)';
-                e.currentTarget.style.background = 'rgba(255,255,255,0.9)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'scale(1)';
-              e.currentTarget.style.background = state.locked
-                ? 'rgba(255,255,255,0.3)'
-                : 'rgba(255,255,255,0.6)';
-            }}
-          >
-            <div style={{ fontWeight: 600, marginBottom: '2px' }}>
-              {state.cn}
+        {face.states.map((state, idx) => {
+          const isClicked = clickedState === state.id;
+          return (
+            <div
+              key={state.id}
+              onClick={() => {
+                if (!state.locked && !state.isEmpty && onStateSelect) {
+                  setClickedState(state.id);
+                  setTimeout(() => {
+                    onStateSelect(state.id);
+                    setClickedState(null);
+                  }, 200);
+                }
+              }}
+              style={{
+                background: state.isEmpty
+                  ? 'transparent'
+                  : isClicked
+                    ? 'rgba(163, 213, 255, 0.9)'
+                    : 'rgba(255,255,255,0.6)',
+                borderRadius: '4px',
+                padding: '8px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '11px',
+                fontFamily: "'Excalifont', 'Xiaolai', sans-serif",
+                cursor: state.isEmpty || state.locked ? 'default' : 'pointer',
+                transition: 'all 0.2s ease',
+                userSelect: 'none',
+                transform: isClicked ? 'scale(0.95)' : 'scale(1)',
+                boxShadow: isClicked ? '0 0 12px rgba(163, 213, 255, 0.6)' : 'none',
+                pointerEvents: face.unlocked && !state.isEmpty ? 'auto' : 'none'
+              }}
+              onMouseEnter={(e) => {
+                if (face.unlocked && !isClicked && !state.isEmpty) {
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.9)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isClicked && !state.isEmpty) {
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.6)';
+                }
+              }}
+            >
+              {!face.unlocked || state.isEmpty ? null : (
+                <>
+                  {getStateIcon(state.id)}
+                  <div style={{ marginTop: '4px', fontWeight: 500, color: '#555' }}>
+                    {state.cn}
+                  </div>
+                </>
+              )}
             </div>
-            <div style={{ fontSize: '10px', opacity: 0.7 }}>
-              {state.en}
-            </div>
+          );
+        })}
+
+        {/* @@@ Single semi-transparent lock overlay for locked faces */}
+        {!face.unlocked && (
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(200, 200, 200, 0.5)',
+            borderRadius: '8px',
+            pointerEvents: 'none'
+          }}>
+            <svg width="80" height="80" viewBox="0 0 100 100" style={{ opacity: 0.6 }}>
+              <rect x="30" y="45" width="40" height="35" rx="4" fill="none" stroke="#666" strokeWidth="6"/>
+              <path d="M 35 45 V 35 Q 35 20 50 20 Q 65 20 65 35 V 45" fill="none" stroke="#666" strokeWidth="6" strokeLinecap="round"/>
+              <circle cx="50" cy="62" r="4" fill="#666"/>
+            </svg>
           </div>
-        ))}
+        )}
       </div>
     );
   };
@@ -431,14 +544,13 @@ export function StateCube() {
   return (
     <div
       style={{
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
         perspective: '1200px',
         cursor: isDragging ? 'grabbing' : 'grab',
         userSelect: 'none',
-        zIndex: 1000
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '16px'
       }}
       onMouseDown={handleMouseDown}
     >
@@ -469,17 +581,6 @@ export function StateCube() {
 
         {/* Bottom face */}
         {renderFace(faces[5], 'rotateX(-90deg) translateZ(150px)')}
-      </div>
-
-      {/* Instruction text */}
-      <div style={{
-        marginTop: '20px',
-        textAlign: 'center',
-        color: '#666',
-        fontSize: '14px',
-        fontFamily: "'Excalifont', 'Xiaolai', sans-serif"
-      }}>
-        拖拽旋转查看 6 个面 · Drag to rotate
       </div>
     </div>
   );

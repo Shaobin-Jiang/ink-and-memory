@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { StateCube } from './StateCube';
 import type { StateConfig } from '../types/voice';
 
 interface Props {
@@ -10,7 +11,7 @@ interface Props {
 export default function StateChooser({ stateConfig, selectedState, onChoose }: Props) {
   const [isExpanded, setIsExpanded] = useState(!selectedState);
 
-  // @@@ Collapse when selectedState is set externally (e.g., loaded from database)
+  // @@@ Collapse when selectedState is set externally
   useEffect(() => {
     if (selectedState) {
       setIsExpanded(false);
@@ -19,13 +20,64 @@ export default function StateChooser({ stateConfig, selectedState, onChoose }: P
 
   const selectedStateData = selectedState ? stateConfig.states[selectedState] : null;
 
+  // @@@ Format today's date
+  const today = new Date();
+  const dateString = today.toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long'
+  });
+
+  const handleStateSelect = (stateId: string) => {
+    onChoose(stateId);
+    setIsExpanded(false);
+  };
+
+  // @@@ Mini icon generator for collapsed state (24px version)
+  const getMiniStateIcon = (stateId: string): JSX.Element => {
+    const iconProps = { width: 24, height: 24, viewBox: "0 0 100 100" };
+
+    switch(stateId.toLowerCase()) {
+      case 'happy':
+        return (
+          <svg {...iconProps}>
+            <circle cx="50" cy="50" r="40" fill="none" stroke="#FFD93D" strokeWidth="6"/>
+            <path d="M 35 60 Q 50 75 65 60" fill="none" stroke="#FFD93D" strokeWidth="6" strokeLinecap="round"/>
+            <circle cx="38" cy="40" r="4" fill="#FFD93D"/>
+            <circle cx="62" cy="40" r="4" fill="#FFD93D"/>
+          </svg>
+        );
+      case 'ok':
+        return (
+          <svg {...iconProps}>
+            <circle cx="50" cy="50" r="40" fill="none" stroke="#95D5B2" strokeWidth="6"/>
+            <line x1="35" y1="60" x2="65" y2="60" stroke="#95D5B2" strokeWidth="6" strokeLinecap="round"/>
+            <circle cx="38" cy="40" r="4" fill="#95D5B2"/>
+            <circle cx="62" cy="40" r="4" fill="#95D5B2"/>
+          </svg>
+        );
+      case 'unhappy':
+        return (
+          <svg {...iconProps}>
+            <circle cx="50" cy="50" r="40" fill="none" stroke="#A8DADC" strokeWidth="6"/>
+            <path d="M 35 65 Q 50 50 65 65" fill="none" stroke="#A8DADC" strokeWidth="6" strokeLinecap="round"/>
+            <circle cx="38" cy="40" r="4" fill="#A8DADC"/>
+            <circle cx="62" cy="40" r="4" fill="#A8DADC"/>
+          </svg>
+        );
+      default:
+        return (
+          <svg {...iconProps}>
+            <circle cx="50" cy="50" r="35" fill="none" stroke="#999" strokeWidth="4"/>
+          </svg>
+        );
+    }
+  };
+
   return (
     <div style={{
-      padding: '16px 20px',
-      background: 'linear-gradient(135deg, #fffef9 0%, #f8f0e6 100%)',
-      border: '1px solid #d0c4b0',
-      borderRadius: 8,
-      boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+      padding: '0',
       fontFamily: "'Excalifont', 'Xiaolai', 'Georgia', serif"
     }}>
       {/* Compact view when state is selected */}
@@ -33,115 +85,100 @@ export default function StateChooser({ stateConfig, selectedState, onChoose }: P
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12
-        }}>
+          gap: 16,
+          cursor: 'pointer'
+        }}
+        onClick={() => setIsExpanded(true)}
+        >
+          {/* Date */}
+          <div style={{
+            fontSize: 13,
+            color: '#666',
+            fontWeight: 400
+          }}>
+            {dateString}
+          </div>
+
+          {/* Mini icon + state name */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 12,
-            flex: 1
-          }}>
-            <span style={{
-              fontSize: 13,
-              color: '#666',
-              fontWeight: 500
-            }}>
-              Current state:
-            </span>
+            gap: 10,
+            padding: '4px 12px',
+            background: 'rgba(255,255,255,0.6)',
+            borderRadius: 6,
+            border: '1px solid rgba(0,0,0,0.08)',
+            transition: 'all 0.2s'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.9)';
+            e.currentTarget.style.borderColor = 'rgba(0,0,0,0.15)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.6)';
+            e.currentTarget.style.borderColor = 'rgba(0,0,0,0.08)';
+          }}
+          >
+            {/* Shrunken state icon */}
+            <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+              {getMiniStateIcon(selectedState)}
+            </div>
+
             <span style={{
               fontSize: 14,
-              fontWeight: 600,
-              color: '#333',
-              padding: '4px 12px',
-              background: '#fff',
-              border: '1px solid #d0c4b0',
-              borderRadius: 4
+              fontWeight: 500,
+              color: '#333'
             }}>
               {selectedStateData.name}
             </span>
           </div>
-          <button
-            onClick={() => setIsExpanded(true)}
-            style={{
-              padding: '6px 14px',
-              fontSize: 12,
-              fontWeight: 500,
-              border: '1px solid #d0c4b0',
-              background: '#fff',
-              borderRadius: 4,
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              color: '#333'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#f0f0f0';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#fff';
-            }}
-          >
-            Change
-          </button>
         </div>
       ) : (
-        /* Expanded view - choose state */
+        /* Expanded view - cube centered on entire screen */
         <>
-          <p style={{
-            margin: '0 0 16px 0',
-            fontSize: 15,
-            color: '#333',
-            textAlign: 'center',
-            lineHeight: 1.5,
-            fontWeight: 500
-          }}>
-            {stateConfig.greeting}
-          </p>
+          {/* Date header - stays in place */}
           <div style={{
-            display: 'flex',
-            gap: 10,
-            justifyContent: 'center',
-            flexWrap: 'wrap'
+            fontSize: 13,
+            color: '#666',
+            fontWeight: 400
           }}>
-            {Object.entries(stateConfig.states).map(([id, state]) => {
-              const isSelected = id === selectedState;
-              return (
-                <button
-                  key={id}
-                  onClick={() => {
-                    onChoose(id);
-                    setIsExpanded(false);
-                  }}
-                  style={{
-                    padding: '10px 20px',
-                    fontSize: 14,
-                    fontWeight: isSelected ? 600 : 500,
-                    border: isSelected ? '2px solid #666' : '1px solid #d0c4b0',
-                    background: isSelected ? '#fff' : '#fff',
-                    borderRadius: 6,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    minWidth: '90px',
-                    color: '#333',
-                    boxShadow: isSelected ? '0 2px 6px rgba(0,0,0,0.12)' : 'none'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isSelected) {
-                      e.currentTarget.style.background = '#f8f0e6';
-                      e.currentTarget.style.borderColor = '#999';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isSelected) {
-                      e.currentTarget.style.background = '#fff';
-                      e.currentTarget.style.borderColor = '#d0c4b0';
-                    }
-                  }}
-                >
-                  {state.name}
-                </button>
-              );
-            })}
+            {dateString}
+          </div>
+
+          {/* Fixed overlay - cube centered on viewport */}
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            pointerEvents: 'none'
+          }}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 20,
+              pointerEvents: 'auto'
+            }}>
+              <StateCube
+                stateConfig={stateConfig}
+                onStateSelect={handleStateSelect}
+              />
+
+              {/* Helper text */}
+              <div style={{
+                fontSize: 12,
+                color: '#999',
+                textAlign: 'center'
+              }}>
+                Click a state to select
+              </div>
+            </div>
           </div>
         </>
       )}

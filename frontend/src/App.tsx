@@ -20,7 +20,6 @@ import AboutView from './components/AboutView';
 import AgentDropdown from './components/AgentDropdown';
 import ChatWidgetUI from './components/ChatWidgetUI';
 import StateChooser from './components/StateChooser';
-import { StateCube } from './components/StateCube';
 import type { VoiceConfig, StateConfig } from './types/voice';
 import { getVoices, getMetaPrompt, getStateConfig } from './utils/voiceStorage';
 import { getDefaultVoices, chatWithVoice, importLocalData } from './api/voiceApi';
@@ -34,14 +33,12 @@ import { STORAGE_KEYS } from './constants/storageKeys';
 
 // @@@ Left Toolbar Component - floating toolbelt within left margin
 function LeftToolbar({
-  onStartFresh,
   onInsertAgent,
   onToggleAlign,
   onShowCalendar,
   onSaveToday,
   isAligned
 }: {
-  onStartFresh: () => void;
   onInsertAgent: () => void;
   onToggleAlign: () => void;
   onShowCalendar: () => void;
@@ -125,33 +122,7 @@ function LeftToolbar({
         </svg>
       </button>
 
-      {/* Start Fresh button - third */}
-      <button
-        onClick={onStartFresh}
-        title="Start Fresh"
-        style={{
-          width: '36px',
-          height: '36px',
-          border: 'none',
-          borderRadius: '4px',
-          backgroundColor: '#fff',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          transition: 'all 0.2s ease'
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = '#f0f0f0';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = '#fff';
-        }}
-      >
-        <FaSync size={18} color="#333" />
-      </button>
-
-      {/* Insert Agent button - fourth */}
+      {/* Insert Agent button - third */}
       <button
         onClick={onInsertAgent}
         title="Insert Agent Chat"
@@ -568,9 +539,14 @@ export default function App() {
 
     const autoSaveTimer = setTimeout(async () => {
       try {
+        // @@@ Auto-save: update content only, preserve existing name
+        // Date comes from created_at, so we don't include it in name
+        const firstTextCell = state.cells.find(c => c.type === 'text') as TextCell | undefined;
+        const firstLine = firstTextCell?.content.split('\n')[0].trim() || 'Untitled';
+
         const { saveSession } = await import('./api/voiceApi');
-        // Auto-save without name (preserves existing name if any)
-        await saveSession(state.currentEntryId!, state);
+        const sessionId = state.currentEntryId || crypto.randomUUID();
+        await saveSession(sessionId, state, firstLine);
         console.log('Auto-saved to database');
       } catch (error) {
         console.error('Auto-save failed:', error);
@@ -884,6 +860,68 @@ export default function App() {
     setShowWarning(true);
   }, []);
 
+  // @@@ New session: save current, then create fresh (no data loss, no warning)
+  const handleNewSession = useCallback(async () => {
+    if (!state || !engineRef.current) return;
+
+    // @@@ First, save current session if authenticated and has content
+    console.log('🔄 Creating new session...');
+    console.log('📊 isAuthenticated:', isAuthenticated);
+
+    if (isAuthenticated) {
+      const hasContent = state.cells.some(c => c.type === 'text' && (c as TextCell).content.trim());
+      console.log('📝 Has content:', hasContent);
+
+      if (hasContent) {
+        console.log('💾 Saving current session before creating new one...');
+        try {
+          // @@@ Save with title only (no date prefix)
+          const firstTextCell = state.cells.find(c => c.type === 'text') as TextCell | undefined;
+          const firstLine = firstTextCell?.content.split('\n')[0].trim() || 'Untitled';
+
+          // @@@ Ensure we have a valid sessionId
+          const { saveSession } = await import('./api/voiceApi');
+          const sessionId = state.currentEntryId || crypto.randomUUID();
+          console.log('📋 Saving session:', sessionId, 'with name:', firstLine);
+          await saveSession(sessionId, state, firstLine);
+          console.log('✅ Current session saved successfully');
+        } catch (error) {
+          console.error('❌ Failed to save current session:', error);
+        }
+      } else {
+        console.log('⚠️ No content to save, skipping');
+      }
+    } else {
+      console.log('⚠️ Not authenticated, skipping save');
+    }
+
+    // @@@ Create empty state with NEW sessionId
+    const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const emptyState: EditorState = {
+      cells: [{ id: Math.random().toString(36).slice(2), type: 'text' as const, content: '' }],
+      commentors: [],
+      tasks: [],
+      weightPath: [],
+      overlappedPhrases: [],
+      sessionId: newSessionId,
+      currentEntryId: newSessionId
+    };
+
+    // @@@ Load empty state directly into engine (immediate UI update)
+    engineRef.current.loadState(emptyState);
+    setState(emptyState);
+    setLocalTexts(new Map());
+
+    // @@@ Don't save empty session - let auto-save handle it when user types
+    // This ensures the session gets saved with content, not as empty
+    if (!isAuthenticated) {
+      // For guest users: clear localStorage
+      localStorage.removeItem(STORAGE_KEYS.EDITOR_STATE);
+      localStorage.removeItem(STORAGE_KEYS.SELECTED_STATE);
+    }
+    console.log('🆕 New session created (will be saved when you start typing)');
+  }, [state, isAuthenticated]);
+
   const confirmStartFresh = useCallback(async () => {
     setShowWarning(false);
 
@@ -927,19 +965,14 @@ export default function App() {
     try {
       // @@@ Save to database if authenticated, localStorage if guest
       if (isAuthenticated) {
-        // Get first line of text for session name
+        // @@@ Save with title only (date comes from created_at)
         const firstTextCell = state.cells.find(c => c.type === 'text') as TextCell | undefined;
         const firstLine = firstTextCell?.content.split('\n')[0].trim() || 'Untitled';
-
-        // Generate date-prefixed name: "YYYY-MM-DD - FirstLine"
-        const today = new Date();
-        const dateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-        const sessionName = `${dateKey} - ${firstLine}`;
 
         // Save to database
         const { saveSession } = await import('./api/voiceApi');
         const sessionId = state.currentEntryId || crypto.randomUUID();
-        await saveSession(sessionId, state, sessionName);
+        await saveSession(sessionId, state, firstLine);
 
         // Update current entry ID in engine state
         engineRef.current.setCurrentEntryId(sessionId);
@@ -1624,17 +1657,53 @@ export default function App() {
           fontFamily: 'system-ui, -apple-system, sans-serif',
           boxSizing: 'border-box'
         }}>
-          {/* Left spacer for layout - hide on mobile */}
+          {/* New Session "+" button - top left (desktop only) */}
+          {!isMobile && (
+            <button
+              onClick={handleNewSession}
+              title="New Session"
+              style={{
+                position: 'fixed',
+                left: '20px',
+                top: '72px',
+                zIndex: 101,
+                width: '32px',
+                height: '32px',
+                border: 'none',
+                borderRadius: '50%',
+                backgroundColor: '#fff',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                fontSize: '20px',
+                fontWeight: '300',
+                color: '#666',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#f8f8f8';
+                e.currentTarget.style.transform = 'scale(1.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#fff';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+            >
+              +
+            </button>
+          )}
+
+          {/* Left toolbar - floating on top (desktop only) */}
           {!isMobile && (
             <div style={{
-              width: '48px',
-              backgroundColor: 'transparent',
-              position: 'relative',
-              flexShrink: 0,
-              marginLeft: '12px'
+              position: 'fixed',
+              left: '12px',
+              top: '100px',
+              zIndex: 100
             }}>
               <LeftToolbar
-                onStartFresh={handleStartFresh}
                 onInsertAgent={handleInsertAgent}
                 onToggleAlign={handleToggleAlign}
                 onShowCalendar={() => setShowCalendarPopup(true)}
@@ -1721,6 +1790,7 @@ export default function App() {
                 position: 'relative',
                 overflow: 'auto',
                 padding: '20px',
+                paddingLeft: isMobile ? '20px' : '80px',  // @@@ Extra left padding for floating toolbar
                 paddingBottom: '80px',  // Extra space for smooth scrolling to bottom
                 backgroundColor: '#fffef9'  // @@@ Cream paper background for notebook lines
               }}>
@@ -1729,7 +1799,10 @@ export default function App() {
                   maxWidth: '600px'
                 }}>
                   {/* State chooser widget - always shown, collapses when state selected */}
-                  <div style={{ marginBottom: 24 }}>
+                  <div style={{
+                    height: '32px',  // @@@ Fixed height to match one line interval
+                    marginBottom: '10.8px'  // @@@ 1/3 line interval (32.4px / 3)
+                  }}>
                     <StateChooser
                       stateConfig={stateConfig}
                       selectedState={selectedState}
@@ -1745,7 +1818,10 @@ export default function App() {
                       const content = localTexts.get(cell.id) ?? textCell.content;
 
                       return (
-                        <div key={cell.id} style={{ position: 'relative' }}>
+                        <div key={cell.id} style={{
+                          position: 'relative',
+                          marginTop: idx === 0 ? '0.4px' : 0  // @@@ Align first line with 2nd notebook line
+                        }}>
                           {/* Highlight layer for this cell */}
                           <div style={{
                             position: 'absolute',
@@ -1866,15 +1942,17 @@ export default function App() {
                     const gap = Math.max(30, window.innerWidth * 0.02);
                     // @@@ Use global max width when aligned, otherwise use group's max width
                     const lineWidthToUse = commentsAligned ? globalMaxLineWidth : group.maxLineWidth;
-                    const leftPosition = containerPadding + lineWidthToUse + gap;
+                    const leftPosition = containerPadding + lineWidthToUse + gap + (lineHeight * 2);  // @@@ Move right 2 line heights
 
                   // @@@ Position using offsetTop (scroll-independent)
                   // centerY is already relative to cell's top, so just add:
                   // - cellOffsetTop: position relative to content container
-                  // - 20px: scroll container padding (line 1028)
-                  // - 24px: StateChooser marginBottom (line 1036)
-                  // - subtract lineHeight: move up to top of 2-line block
-                  const topPosition = cellOffsetTop + group.centerY + 20 + 24 - lineHeight * 2;
+                  // - 20px: scroll container top padding
+                  // - 32px: StateChooser fixed height
+                  // - 10.8px: StateChooser marginBottom
+                  // - subtract lineHeight * 2: move up to top of 2-line block
+                  // - subtract lineHeight / 3: additional upward adjustment
+                  const topPosition = cellOffsetTop + group.centerY + 20 + 32 + 10.8 - lineHeight * 2 - (lineHeight / 3);
 
                   // @@@ If expanded, use the expanded comment ID (stable), otherwise use current index
                   const isExpanded = group.comments.some(c => c.id === expandedCommentId);
@@ -2155,9 +2233,6 @@ export default function App() {
           onClose={() => setShowCalendarPopup(false)}
         />
       )}
-
-      {/* @@@ TEMPORARY: 3D State Cube for testing */}
-      <StateCube />
     </>
   );
 }
