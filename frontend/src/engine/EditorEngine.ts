@@ -137,8 +137,6 @@ export class EditorEngine {
   // @@@ Update voice configurations from settings
   setVoiceConfigs(configs: Record<string, any>) {
     this.voiceConfigs = configs;
-    console.log('📢 EditorEngine: voiceConfigs updated, enabled voices:',
-      Object.entries(configs).filter(([_, v]) => v.enabled).map(([k]) => k));
   }
 
   // @@@ Update a specific text cell by ID
