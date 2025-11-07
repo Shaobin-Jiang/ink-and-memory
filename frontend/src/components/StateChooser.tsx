@@ -5,10 +5,11 @@ import type { StateConfig } from '../types/voice';
 interface Props {
   stateConfig: StateConfig;
   selectedState: string | null;
+  createdAt?: string;  // @@@ Optional creation date (YYYY-MM-DD)
   onChoose: (stateId: string) => void;
 }
 
-export default function StateChooser({ stateConfig, selectedState, onChoose }: Props) {
+export default function StateChooser({ stateConfig, selectedState, createdAt, onChoose }: Props) {
   const [isExpanded, setIsExpanded] = useState(!selectedState);
   const [shouldAnimate, setShouldAnimate] = useState(false);
   const [isFadingOut, setIsFadingOut] = useState(false);
@@ -26,9 +27,12 @@ export default function StateChooser({ stateConfig, selectedState, onChoose }: P
 
   const selectedStateData = selectedState ? stateConfig.states[selectedState] : null;
 
-  // @@@ Format today's date
-  const today = new Date();
-  const dateString = today.toLocaleDateString('zh-CN', {
+  // @@@ Use createdAt if provided, otherwise use today
+  const displayDate = createdAt
+    ? new Date(createdAt + 'T00:00:00')
+    : new Date();
+
+  const dateString = displayDate.toLocaleDateString('zh-CN', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',

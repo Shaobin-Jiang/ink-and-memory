@@ -15,6 +15,8 @@ export interface EditorState {
   overlappedPhrases: string[];  // @@@ Phrases rejected due to overlap (feedback to backend)
   sessionId: string;
   currentEntryId?: string;  // Track which calendar entry is being edited (for overwrite on save)
+  selectedState?: string | null;  // @@@ Emotional state for this session (stored per-session)
+  createdAt?: string;  // @@@ ISO date when session was created (YYYY-MM-DD)
 }
 
 export type Cell = TextCell | WidgetCell;

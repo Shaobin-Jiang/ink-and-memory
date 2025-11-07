@@ -373,10 +373,10 @@ function TimelinePage({ isVisible, voiceConfigs }: { isVisible: boolean; voiceCo
     timelineByDate.get(date)!.picture = pic;
   });
 
-  // @@@ Set initial scroll position to center on today's card
+  // @@@ Set initial scroll position to show today's row at top
   // Use useLayoutEffect to position BEFORE browser paints (prevents flash)
   useLayoutEffect(() => {
-    // @@@ Only center when timeline is visible AND data has loaded
+    // @@@ Only scroll when timeline is visible AND data has loaded
     if (!isVisible || initialLoading) return;
 
     // Double RAF to ensure layout is complete
@@ -384,16 +384,14 @@ function TimelinePage({ isVisible, voiceConfigs }: { isVisible: boolean; voiceCo
       requestAnimationFrame(() => {
         if (scrollContainerRef.current) {
           // Today is at index 7 (after 7 past days)
-          // Each card is 500px + 4rem gap (64px) = 564px
-          // Plus left padding of 4rem (64px)
-          const cardWidth = 500 + 64;
+          // Each row is roughly 98px (80px card + 1.5rem gap ~= 24px)
           const todayIndex = 7;
-          const leftPadding = 64;
-          const containerWidth = scrollContainerRef.current.clientWidth;
+          const rowHeight = 98; // Approximate height of row + gap
+          const topPadding = 48; // 3rem top padding
 
-          // Center today's card
-          const scrollLeft = leftPadding + (todayIndex * cardWidth) - (containerWidth / 2) + (250);
-          scrollContainerRef.current.scrollLeft = scrollLeft;
+          // Scroll to today's row
+          const scrollTop = topPadding + (todayIndex * rowHeight);
+          scrollContainerRef.current.scrollTop = scrollTop;
         }
       });
     });
@@ -527,20 +525,23 @@ function TimelinePage({ isVisible, voiceConfigs }: { isVisible: boolean; voiceCo
         width: '100%',
         height: '100%',
         background: '#f8f0e6',
-        overflowX: 'auto',
-        overflowY: 'hidden',
+        overflowX: 'hidden',
+        overflowY: 'auto',
         display: 'flex',
         flexDirection: 'column',
-        padding: '3rem 0'
+        alignItems: 'center',
+        padding: '3rem 0',
+        paddingBottom: '3rem'
       }}>
-      {/* @@@ Horizontal scrolling timeline - cards side by side */}
+      {/* @@@ Vertical scrolling timeline - rows stacked */}
       <div style={{
         display: 'flex',
-        flexDirection: 'row',
-        gap: '4rem',
-        padding: '0 4rem',
-        minHeight: 0,
-        flex: 1
+        flexDirection: 'column',
+        gap: '1.5rem',
+        maxWidth: '900px',
+        width: '100%',
+        padding: '0 2rem',
+        paddingBottom: '5rem'  // @@@ Prevent bottom card cutoff
       }}>
         {allTimelineDays.map((day, index) => {
           const dayData = timelineByDate.get(day.date);
@@ -551,104 +552,84 @@ function TimelinePage({ isVisible, voiceConfigs }: { isVisible: boolean; voiceCo
             <div
               key={day.date}
               style={{
-                display: 'flex',
-                flexDirection: 'column',
-                minWidth: '500px',
-                maxWidth: '500px',
-                position: 'relative'
+                position: 'relative',
+                paddingLeft: '3rem'
               }}>
-              {/* Timeline node and line */}
+              {/* @@@ Fixed timeline node - does NOT move with card hover */}
               <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                marginBottom: '2rem',
-                position: 'relative'
-              }}>
-                {/* Line before node */}
-                {index > 0 && (
-                  <div style={{
-                    position: 'absolute',
-                    right: 'calc(50% + 12px)',
-                    width: 'calc(4rem + 50%)',
-                    height: '3px',
-                    background: '#d0c4b0'
-                  }} />
-                )}
+                position: 'absolute',
+                left: '0',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                width: '20px',
+                height: '20px',
+                borderRadius: '50%',
+                background: hasData ? '#4CAF50' : (day.isToday ? '#888' : '#ddd'),
+                border: '3px solid #f8f0e6',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                zIndex: 2
+              }} />
 
-                {/* Timeline node */}
+              {/* @@@ Fixed connecting line - does NOT move with card hover */}
+              {index < allTimelineDays.length - 1 && (
                 <div style={{
-                  width: '24px',
-                  height: '24px',
-                  borderRadius: '50%',
-                  background: hasData ? '#4CAF50' : (day.isToday ? '#888' : '#ddd'),
-                  border: '3px solid #f8f0e6',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                  margin: '0 auto',
-                  position: 'relative',
-                  zIndex: 2
+                  position: 'absolute',
+                  left: '10.5px',
+                  top: '50%',
+                  height: 'calc(100% + 1.5rem)',
+                  width: '3px',
+                  background: '#d0c4b0',
+                  zIndex: 1
                 }} />
+              )}
 
-                {/* Line after node */}
-                {index < allTimelineDays.length - 1 && (
-                  <div style={{
-                    position: 'absolute',
-                    left: 'calc(50% + 12px)',
-                    width: 'calc(4rem + 50%)',
-                    height: '3px',
-                    background: '#d0c4b0'
-                  }} />
-                )}
-              </div>
-
-              {/* Date header */}
-              <div style={{
-                fontSize: '16px',
-                fontWeight: 600,
-                color: day.isToday ? '#2c2c2c' : '#666',
-                textAlign: 'center',
-                marginBottom: '1.5rem'
-              }}>
-                {day.isToday ? 'Today' : formatDate(day.date)}
-              </div>
-
-              {/* Card content */}
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '1rem',
-                flex: 1
-              }}>
-                {/* Image */}
+              {/* @@@ Movable card - slides right on hover */}
+              <div
+                onClick={() => {
+                  if (dayData?.picture) {
+                    handleImageClick(dayData.picture);
+                  } else if (day.isToday && !isGenerating) {
+                    handleGenerateForDate(day.date);
+                  }
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '1rem',
+                  background: '#fff',
+                  border: '1px solid #d0c4b0',
+                  borderRadius: '8px',
+                  padding: '1rem',
+                  cursor: (dayData?.picture || day.isToday) && !isGenerating ? 'pointer' : 'default',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  opacity: day.isPast && !hasData ? 0.4 : 1
+                }}
+                onMouseEnter={e => {
+                  if ((dayData?.picture || day.isToday) && !isGenerating) {
+                    e.currentTarget.style.transform = 'translateX(8px)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+                  }
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'translateX(0)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                {/* @@@ Small 80x80 image thumbnail */}
                 <div style={{ flexShrink: 0 }}>
                   {dayData?.picture ? (
-                    <div style={{
-                      position: 'relative',
-                      background: '#fff',
-                      border: '1px solid #d0c4b0',
-                      borderRadius: '8px',
-                      overflow: 'hidden',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s'
-                    }}
-                    onClick={() => handleImageClick(dayData.picture)}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.transform = 'scale(1.02)';
-                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.transform = 'scale(1)';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                    >
+                    <div style={{ position: 'relative' }}>
                       <img
                         src={`data:image/${dayData.picture.base64?.startsWith('iVBOR') ? 'png' : 'jpeg'};base64,${dayData.picture.base64}`}
                         alt={dayData.picture.prompt}
                         style={{
-                          width: '100%',
-                          aspectRatio: '1',
-                          objectFit: 'cover'
+                          width: '80px',
+                          height: '80px',
+                          objectFit: 'cover',
+                          borderRadius: '6px'
                         }}
                       />
+                      {/* Redraw button */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -657,10 +638,10 @@ function TimelinePage({ isVisible, voiceConfigs }: { isVisible: boolean; voiceCo
                         disabled={isGenerating}
                         style={{
                           position: 'absolute',
-                          top: '0.75rem',
-                          right: '0.75rem',
-                          width: '32px',
-                          height: '32px',
+                          top: '4px',
+                          right: '4px',
+                          width: '24px',
+                          height: '24px',
                           borderRadius: '50%',
                           background: 'rgba(255, 255, 255, 0.95)',
                           border: 'none',
@@ -669,7 +650,7 @@ function TimelinePage({ isVisible, voiceConfigs }: { isVisible: boolean; voiceCo
                           alignItems: 'center',
                           justifyContent: 'center',
                           opacity: 0.9,
-                          transition: 'all 0.2s'
+                          transition: 'opacity 0.2s'
                         }}
                         onMouseEnter={e => {
                           if (!isGenerating) e.currentTarget.style.opacity = '1';
@@ -679,71 +660,53 @@ function TimelinePage({ isVisible, voiceConfigs }: { isVisible: boolean; voiceCo
                         }}
                         title="Redraw image"
                       >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
                         </svg>
                       </button>
                     </div>
                   ) : (
-                    <div
-                      onClick={() => day.isToday && !isGenerating && handleGenerateForDate(day.date)}
-                      style={{
-                        width: '100%',
-                        aspectRatio: '1',
-                        background: day.isFuture ? 'linear-gradient(135deg, #f8f0e6 0%, #ede3d5 100%)' : 'linear-gradient(135deg, #f0e8de 0%, #e5dbc9 100%)',
-                        border: day.isFuture ? '2px dashed #d0c4b0' : '2px dashed #b8a896',
-                        borderRadius: '8px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: day.isToday ? (isGenerating ? 'wait' : 'pointer') : 'default',
-                        gap: '0.75rem',
-                        opacity: day.isPast || day.isFuture ? 0.4 : 1,
-                        transition: 'all 0.2s'
-                      }}
-                      onMouseEnter={e => {
-                        if (day.isToday && !isGenerating) {
-                          e.currentTarget.style.opacity = '1';
-                        }
-                      }}
-                      onMouseLeave={e => {
-                        if (day.isToday && !isGenerating) {
-                          e.currentTarget.style.opacity = '1';
-                        } else if (day.isPast) {
-                          e.currentTarget.style.opacity = '0.4';
-                        }
-                      }}
-                    >
-                      <div style={{
-                        fontSize: '15px',
-                        color: '#999',
-                        fontWeight: 500,
-                        fontStyle: 'italic',
-                        textAlign: 'center',
-                        lineHeight: '1.8',
-                        padding: '0 3rem'
-                      }}>
-                        {isGenerating ? 'Generating...' : getPlaceholderText(day.daysOffset)}
-                      </div>
+                    <div style={{
+                      width: '80px',
+                      height: '80px',
+                      background: day.isFuture ? 'linear-gradient(135deg, #f8f0e6 0%, #ede3d5 100%)' : 'linear-gradient(135deg, #f0e8de 0%, #e5dbc9 100%)',
+                      border: day.isFuture ? '2px dashed #d0c4b0' : '2px dashed #b8a896',
+                      borderRadius: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '11px',
+                      color: '#999',
+                      fontStyle: 'italic',
+                      textAlign: 'center',
+                      padding: '0.5rem'
+                    }}>
+                      {isGenerating ? '...' : '?'}
                     </div>
                   )}
                 </div>
 
-                {/* Simple metadata */}
-                {(dayData?.comments && dayData.comments.length > 0) && (
+                {/* @@@ Text content - date + summary */}
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
-                    textAlign: 'center',
-                    padding: '1rem',
-                    background: 'rgba(255, 255, 255, 0.5)',
-                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    color: day.isToday ? '#2c2c2c' : '#666',
+                    marginBottom: '0.25rem'
+                  }}>
+                    {day.isToday ? 'Today' : formatDate(day.date)}
+                  </div>
+                  <div style={{
                     fontSize: '13px',
                     color: '#888',
                     fontStyle: 'italic'
                   }}>
-                    {dayData.comments.length} {dayData.comments.length === 1 ? 'entry' : 'entries'}
+                    {isGenerating ? 'Generating...' :
+                     dayData?.comments?.length ?
+                       `${dayData.comments.length} ${dayData.comments.length === 1 ? 'entry' : 'entries'}` :
+                       getPlaceholderText(day.daysOffset)}
                   </div>
-                )}
+                </div>
               </div>
             </div>
           );

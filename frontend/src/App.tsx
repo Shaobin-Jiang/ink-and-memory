@@ -402,6 +402,13 @@ export default function App() {
     const engine = new EditorEngine(sessionId);
     engineRef.current = engine;
 
+    // @@@ Initialize createdAt for new session
+    const initialState = engine.getState();
+    if (!initialState.createdAt) {
+      initialState.createdAt = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      setState(initialState);
+    }
+
     engine.subscribe((newState) => {
       setState({ ...newState });
       // Only save to localStorage if not authenticated (guest mode)
@@ -432,13 +439,26 @@ export default function App() {
             sessionToLoad = fullSession.editor_state;
             loadedSessionId = currentSessionId;
           } else if (sessions.length > 0) {
-            // Load most recent session
+            // Load most recent session ONLY if it's from today
             const mostRecent = sessions.sort((a, b) =>
               new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
             )[0];
-            const fullSession = await getSession(mostRecent.id);
-            sessionToLoad = fullSession.editor_state;
-            loadedSessionId = mostRecent.id;
+
+            // @@@ Daily reset check - same logic as StateChooser
+            const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+            const sessionDate = mostRecent.updated_at.split(' ')[0]; // Extract date from "YYYY-MM-DD HH:MM:SS"
+
+            if (sessionDate === today) {
+              // Same day - load the session
+              const fullSession = await getSession(mostRecent.id);
+              sessionToLoad = fullSession.editor_state;
+              loadedSessionId = mostRecent.id;
+            } else {
+              // New day - don't load old session, start fresh
+              console.log(`📅 New day detected. Last session was from ${sessionDate}, today is ${today}. Starting fresh.`);
+              sessionToLoad = null;
+              loadedSessionId = undefined;
+            }
           }
 
           if (sessionToLoad && loadedSessionId) {
@@ -1111,6 +1131,13 @@ export default function App() {
       engineRef.current.loadState(entry.state);
       // Set the current entry ID so subsequent saves will overwrite this entry
       engineRef.current.setCurrentEntryId(entry.id);
+
+      // @@@ Sync global selectedState with loaded session's state
+      const loadedState = entry.state;
+      if (loadedState.selectedState !== undefined) {
+        setSelectedState(loadedState.selectedState);
+      }
+
       setShowCalendarPopup(false);
     }
   }, []);
@@ -1119,7 +1146,18 @@ export default function App() {
     setSelectedState(stateId);
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
-    // @@@ Save to database if authenticated, localStorage if guest
+    // @@@ NEW: Save to EditorState (per-session storage)
+    if (engineRef.current) {
+      const currentState = engineRef.current.getState();
+      currentState.selectedState = stateId;
+      // Set createdAt only if not already set
+      if (!currentState.createdAt) {
+        currentState.createdAt = today;
+      }
+      setState(currentState);
+    }
+
+    // @@@ KEEP: Also save to global preferences for daily reset check
     if (isAuthenticated) {
       try {
         const { savePreferences } = await import('./api/voiceApi');
@@ -1881,7 +1919,8 @@ export default function App() {
                   }}>
                     <StateChooser
                       stateConfig={stateConfig}
-                      selectedState={selectedState}
+                      selectedState={state?.selectedState ?? selectedState}
+                      createdAt={state?.createdAt}
                       onChoose={handleStateChoose}
                     />
                   </div>

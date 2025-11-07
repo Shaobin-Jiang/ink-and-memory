@@ -416,20 +416,22 @@ def generate_daily_picture(all_notes: str, user_id: int):
     import requests
 
     # Step 1: Convert notes to artistic image description using Claude Haiku
-    description_prompt = f"""Read these personal notes and create a vivid, artistic image description that captures the essence, mood, and themes.
+    description_prompt = f"""Read these personal notes and create a warm, gentle image description that captures the emotional essence.
 
 Notes:
 ---
 {all_notes}
 ---
 
-Create a detailed image description (2-3 sentences) that:
-- Captures the emotional tone and atmosphere
-- Uses visual metaphors for abstract concepts
-- Specifies artistic style (e.g., watercolor, impressionist, minimalist)
-- Describes colors, lighting, composition
+Create a simple, heartfelt image description (2-3 sentences) that:
+- Captures the emotional warmth and human feeling
+- Uses natural, everyday imagery (avoid abstract or technical concepts)
+- Specifies style: oil painting, photograph, or vintage stamp art
+- Describes soft colors, natural lighting, simple composition
 
-Be creative and interpretive. Focus on mood and feeling, not literal representation.
+Be warm and minimal. Focus on human emotion and simple beauty.
+Avoid: technical terms, complex metaphors, digital aesthetics.
+Favor: warmth, intimacy, natural scenes, gentle moments.
 
 Return ONLY the image description, no other text."""
 
