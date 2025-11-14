@@ -3,10 +3,14 @@ backend/.venv/
 backend/models.json
 backend/.polycache/
 backend/benchmark/
-backend/test_crud.py
+backend/tests/__pycache__/
 __pycache__/
 *.pyc
 AGENTS.md
+
+# Test artifacts
+backend/tests/*.pyc
+/tmp/test_server.log
 
 # Node
 frontend/node_modules/
@@ -19,6 +23,7 @@ frontend/node_modules/
 *.db
 *.db-shm
 *.db-wal
+backend/data/
 
 # macOS system files
 .DS_Store
