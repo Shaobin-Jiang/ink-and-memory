@@ -124,6 +124,16 @@ export default function DeckManager({ onUpdate }: Props) {
     }
   }
 
+  async function handleToggleDeck(deckId: string, currentEnabled: boolean) {
+    try {
+      await updateDeck(deckId, { enabled: !currentEnabled });
+      await loadDecks();
+      onUpdate?.();
+    } catch (err: any) {
+      alert(`Failed to toggle deck: ${err.message}`);
+    }
+  }
+
   async function handleDeleteDeck(deckId: string) {
     if (!confirm('Delete this deck and all its voices?')) return;
 
@@ -133,6 +143,16 @@ export default function DeckManager({ onUpdate }: Props) {
       onUpdate?.();
     } catch (err: any) {
       alert(`Failed to delete deck: ${err.message}`);
+    }
+  }
+
+  async function handleToggleVoice(voiceId: string, currentEnabled: boolean) {
+    try {
+      await updateVoice(voiceId, { enabled: !currentEnabled });
+      await loadDecks();
+      onUpdate?.();
+    } catch (err: any) {
+      alert(`Failed to toggle voice: ${err.message}`);
     }
   }
 
@@ -331,7 +351,35 @@ export default function DeckManager({ onUpdate }: Props) {
                   </div>
 
                   {/* Actions */}
-                  <div style={{ display: 'flex', gap: 8 }} onClick={(e) => e.stopPropagation()}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }} onClick={(e) => e.stopPropagation()}>
+                    {/* @@@ Deck-level toggle switch */}
+                    <div
+                      onClick={() => handleToggleDeck(deck.id, deck.enabled)}
+                      style={{
+                        width: 50,
+                        height: 26,
+                        borderRadius: 13,
+                        background: deck.enabled ? colorHex : '#ccc',
+                        position: 'relative',
+                        cursor: 'pointer',
+                        transition: 'background 0.3s',
+                        flexShrink: 0
+                      }}
+                      title={deck.enabled ? 'Disable deck' : 'Enable deck'}
+                    >
+                      <div style={{
+                        position: 'absolute',
+                        top: 3,
+                        left: deck.enabled ? 26 : 3,
+                        width: 20,
+                        height: 20,
+                        borderRadius: 10,
+                        background: '#fff',
+                        transition: 'left 0.3s',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                      }} />
+                    </div>
+
                     {isSystem ? (
                       <button
                         onClick={() => handleForkDeck(deck.id)}
@@ -440,6 +488,34 @@ export default function DeckManager({ onUpdate }: Props) {
                                 }}>
                                   {voice.name}
                                 </div>
+                              </div>
+
+                              {/* @@@ Voice-level toggle switch */}
+                              <div
+                                onClick={() => handleToggleVoice(voice.id, voice.enabled)}
+                                style={{
+                                  width: 40,
+                                  height: 22,
+                                  borderRadius: 11,
+                                  background: voice.enabled ? voiceColor : '#ccc',
+                                  position: 'relative',
+                                  cursor: 'pointer',
+                                  transition: 'background 0.3s',
+                                  flexShrink: 0
+                                }}
+                                title={voice.enabled ? 'Disable voice' : 'Enable voice'}
+                              >
+                                <div style={{
+                                  position: 'absolute',
+                                  top: 3,
+                                  left: voice.enabled ? 21 : 3,
+                                  width: 16,
+                                  height: 16,
+                                  borderRadius: 8,
+                                  background: '#fff',
+                                  transition: 'left 0.3s',
+                                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                }} />
                               </div>
 
                               {!isSystem && (

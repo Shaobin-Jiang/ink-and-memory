@@ -2311,9 +2311,17 @@ export default function App() {
           display: 'flex',
           overflow: 'hidden'
         }}>
-          <DeckManager onUpdate={() => {
-            // Reload voice configs when decks/voices are updated
-            console.log('Deck system updated, reloading...');
+          <DeckManager onUpdate={async () => {
+            // @@@ Reload voice configs from deck system
+            console.log('Deck system updated, reloading voices...');
+            const updatedVoices = await loadVoicesFromDecks();
+            setVoiceConfigs(updatedVoices);
+
+            if (engineRef.current) {
+              engineRef.current.setVoiceConfigs(updatedVoices);
+            }
+
+            console.log(`✅ Loaded ${Object.keys(updatedVoices).length} enabled voices`);
           }} />
         </div>
       )}

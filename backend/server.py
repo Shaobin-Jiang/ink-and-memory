@@ -739,6 +739,9 @@ def register(request: RegisterRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    # @@@ Auto-fork all system decks for new user
+    database.auto_fork_system_decks(user_id)
+
     # Generate token
     token = auth.create_access_token(user_id, request.email)
 
@@ -766,6 +769,11 @@ def login(request: LoginRequest):
     # Verify password
     if not auth.verify_password(request.password, user['password_hash']):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    # @@@ Auto-fork system decks if user has no decks yet (handles existing users)
+    user_decks = database.get_user_decks(user['id'])
+    if len(user_decks) == 0:
+        database.auto_fork_system_decks(user['id'])
 
     # Generate token
     token = auth.create_access_token(user['id'], user['email'])
