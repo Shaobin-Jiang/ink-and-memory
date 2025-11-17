@@ -6,6 +6,7 @@ import {
   updateDeck,
   deleteDeck,
   forkDeck,
+  syncDeck,
   createVoice,
   updateVoice,
   deleteVoice,
@@ -143,6 +144,19 @@ export default function DeckManager({ onUpdate }: Props) {
       onUpdate?.();
     } catch (err: any) {
       alert(`Failed to delete deck: ${err.message}`);
+    }
+  }
+
+  async function handleSyncDeck(deckId: string) {
+    if (!confirm('Sync with original template? This will overwrite any changes you made to this deck.')) return;
+
+    try {
+      const result = await syncDeck(deckId);
+      alert(`✅ Synced ${result.synced_voices} voices with original template`);
+      await loadDecks();
+      onUpdate?.();
+    } catch (err: any) {
+      alert(`Failed to sync deck: ${err.message}`);
     }
   }
 
@@ -320,6 +334,7 @@ export default function DeckManager({ onUpdate }: Props) {
                       color: '#2c2c2c',
                       marginBottom: 4
                     }}>
+                      {console.log('🔍 Rendering deck:', deck.name, 'order_index:', deck.order_index, 'full deck:', deck)}
                       {deck.name}
                       {isSystem && (
                         <span style={{
@@ -406,30 +421,59 @@ export default function DeckManager({ onUpdate }: Props) {
                         Fork to My Collection
                       </button>
                     ) : (
-                      <button
-                        onClick={() => handleDeleteDeck(deck.id)}
-                        style={{
-                          padding: '8px 16px',
-                          background: '#e74c3c',
-                          color: '#fff',
-                          border: 'none',
-                          borderRadius: 6,
-                          cursor: 'pointer',
-                          fontSize: 13,
-                          fontWeight: 600,
-                          transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.transform = 'translateY(-1px)';
-                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(231, 76, 60, 0.4)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.transform = 'translateY(0)';
-                          e.currentTarget.style.boxShadow = 'none';
-                        }}
-                      >
-                        Delete Deck
-                      </button>
+                      <>
+                        {/* @@@ Show sync button if deck has a parent */}
+                        {deck.parent_id && (
+                          <button
+                            onClick={() => handleSyncDeck(deck.id)}
+                            style={{
+                              padding: '8px 16px',
+                              background: '#3498db',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: 6,
+                              cursor: 'pointer',
+                              fontSize: 13,
+                              fontWeight: 600,
+                              transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.transform = 'translateY(-1px)';
+                              e.currentTarget.style.boxShadow = '0 4px 12px rgba(52, 152, 219, 0.4)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.transform = 'translateY(0)';
+                              e.currentTarget.style.boxShadow = 'none';
+                            }}
+                          >
+                            Sync with Original
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDeleteDeck(deck.id)}
+                          style={{
+                            padding: '8px 16px',
+                            background: '#e74c3c',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.transform = 'translateY(-1px)';
+                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(231, 76, 60, 0.4)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = 'none';
+                          }}
+                        >
+                          Delete Deck
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>

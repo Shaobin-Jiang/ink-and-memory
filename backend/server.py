@@ -40,14 +40,20 @@ def get_writing_suggestion(text: str, user_id: int, meta_prompt: str = "", state
     if not text or len(text.strip()) < 10:
         return {"success": False, "error": "Text too short"}
 
-    # @@@ Pick a random voice persona to deliver inspiration
+    # @@@ Load voices from user's enabled decks (deck system)
     import random
-    from config import VOICE_ARCHETYPES
 
-    voice_key = random.choice(list(VOICE_ARCHETYPES.keys()))
-    voice_info = VOICE_ARCHETYPES[voice_key]
+    voices = database.load_voices_from_user_decks(user_id)
+
+    if not voices:
+        return {"success": False, "error": "No enabled voices found in your decks"}
+
+    # Pick a random enabled voice
+    voice_key = random.choice(list(voices.keys()))
+    voice_info = voices[voice_key]
 
     print(f"🎭 Selected voice: {voice_info['name']} ({voice_key})")
+    print(f"📚 Selected from {len(voices)} enabled voices")
 
     agent = PolyAgent(id="writing-suggester")
 
@@ -139,28 +145,20 @@ def chat_with_voice(voice_id: str, user_id: int, conversation_history: list, use
     print(f"   State prompt: {repr(state_prompt)[:100]}")
     print(f"{'='*60}\n")
 
-    # @@@ Load user's voice configs from database
-    prefs = database.get_preferences(user_id)
-    voice_configs = prefs['voice_configs'] if prefs and prefs['voice_configs'] else {}
+    # @@@ Load voices from user's enabled decks (deck system)
+    voices = database.load_voices_from_user_decks(user_id)
 
     # @@@ Get voice config for this specific voice
-    if voice_id in voice_configs:
-        voice_config = voice_configs[voice_id]
+    if voice_id in voices:
+        voice_config = voices[voice_id]
         voice_name = voice_config.get('name', voice_id)
-        print(f"📚 Loaded voice config from database for {voice_id}: {voice_name}")
+        print(f"📚 Loaded voice from deck system: {voice_id} ({voice_name})")
     else:
-        # Fallback: use default from config.VOICE_ARCHETYPES
-        import config
-        if voice_id in config.VOICE_ARCHETYPES:
-            default_voice = config.VOICE_ARCHETYPES[voice_id]
-            voice_name = default_voice['name']
-            voice_config = {"systemPrompt": default_voice['systemPrompt']}
-            print(f"📚 Using default voice config for {voice_id}: {voice_name}")
-        else:
-            # Ultimate fallback
-            voice_name = voice_id
-            voice_config = {"systemPrompt": f"{voice_name} voice"}
-            print(f"⚠️  Voice {voice_id} not found, using fallback")
+        # Fallback: voice might be disabled or not in user's decks
+        return {
+            "success": False,
+            "error": f"Voice {voice_id} not found in your enabled decks. Please enable it in the Decks tab."
+        }
 
     agent = PolyAgent(id=f"voice-chat-{voice_name.lower()}")
 
@@ -249,10 +247,9 @@ def analyze_text(text: str, editor_session_id: str, user_id: int, applied_commen
     print(f"   State prompt: {repr(state_prompt)[:100]}")
     print(f"{'='*60}\n")
 
-    # @@@ Load user's voice configs from database
-    prefs = database.get_preferences(user_id)
-    voices = prefs['voice_configs'] if prefs and prefs['voice_configs'] else None
-    print(f"📚 Loaded voice configs from database: {list(voices.keys()) if voices else 'None (will use defaults)'}")
+    # @@@ Load voices from user's enabled decks (deck system)
+    voices = database.load_voices_from_user_decks(user_id)
+    print(f"📚 Loaded {len(voices)} enabled voices from deck system: {list(voices.keys()) if voices else 'None (will use defaults)'}")
 
     agent = PolyAgent(id="voice-analyzer")
 
@@ -1306,6 +1303,16 @@ def fork_deck(deck_id: str, current_user: dict = Depends(get_current_user)):
         return {"deck_id": new_deck_id}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+@app.post("/api/decks/{deck_id}/sync")
+def sync_deck(deck_id: str, current_user: dict = Depends(get_current_user)):
+    """Sync user's forked deck with parent template (force overwrites local changes)"""
+    user_id = current_user['user_id']
+    try:
+        result = database.sync_deck_with_parent(user_id, deck_id, force=True)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/voices")
 def create_voice(request: VoiceCreateRequest, current_user: dict = Depends(get_current_user)):

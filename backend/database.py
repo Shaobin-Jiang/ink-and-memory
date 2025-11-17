@@ -541,6 +541,133 @@ def fork_deck(user_id: int, deck_id: str) -> str:
     finally:
         db.close()
 
+def sync_deck_with_parent(user_id: int, deck_id: str, force: bool = False) -> dict:
+    """
+    Sync user's forked deck with parent template (complete reset).
+
+    Deletes all user's voices and re-creates from parent template.
+    This ensures deleted voices reappear and new parent voices are added.
+
+    Returns: {"success": True, "synced_voices": N}
+    Raises ValueError if deck not found, no parent, or parent missing
+    """
+    import uuid
+
+    db = get_db()
+    try:
+        # Get user's deck
+        deck = db.execute(
+            "SELECT * FROM decks WHERE id = ? AND owner_id = ?",
+            (deck_id, user_id)
+        ).fetchone()
+
+        if not deck:
+            raise ValueError("Deck not found or permission denied")
+
+        if not deck['parent_id']:
+            raise ValueError("Deck is not a fork (no parent)")
+
+        # Get parent deck
+        parent = db.execute(
+            "SELECT * FROM decks WHERE id = ?",
+            (deck['parent_id'],)
+        ).fetchone()
+
+        if not parent:
+            raise ValueError("Parent deck not found")
+
+        # @@@ Step 1: Sync deck metadata (preserve user preferences like enabled/order)
+        db.execute("""
+        UPDATE decks SET
+            name = ?, name_zh = ?, name_en = ?,
+            description = ?, description_zh = ?, description_en = ?,
+            icon = ?, color = ?,
+            has_local_changes = 0,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """, (parent['name'], parent['name_zh'], parent['name_en'],
+              parent['description'], parent['description_zh'], parent['description_en'],
+              parent['icon'], parent['color'],
+              deck_id))
+
+        # @@@ Step 2: Delete ALL user's voices in this deck
+        db.execute("DELETE FROM voices WHERE deck_id = ?", (deck_id,))
+
+        # @@@ Step 3: Re-create all voices from parent (fresh copy)
+        parent_voices = db.execute(
+            "SELECT * FROM voices WHERE deck_id = ? ORDER BY order_index",
+            (deck['parent_id'],)
+        ).fetchall()
+
+        synced_count = 0
+        for parent_voice in parent_voices:
+            new_voice_id = str(uuid.uuid4())
+            db.execute("""
+            INSERT INTO voices (id, deck_id, name, name_zh, name_en, system_prompt,
+                              icon, color, is_system, parent_id, owner_id, enabled, has_local_changes, order_index)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 1, 0, ?)
+            """, (new_voice_id,
+                  deck_id,  # User's deck
+                  parent_voice['name'],
+                  parent_voice['name_zh'],
+                  parent_voice['name_en'],
+                  parent_voice['system_prompt'],
+                  parent_voice['icon'],
+                  parent_voice['color'],
+                  parent_voice['id'],  # parent_id tracks original
+                  user_id,
+                  parent_voice['order_index']))
+            synced_count += 1
+
+        db.commit()
+        return {"success": True, "synced_voices": synced_count}
+    finally:
+        db.close()
+
+def load_voices_from_user_decks(user_id: int) -> dict:
+    """
+    Load all enabled voices from user's enabled decks for LLM analysis.
+
+    Returns dict format: {voice_id: {name, systemPrompt, icon, color}}
+    Compatible with analyze_stateless() expectations.
+    """
+    db = get_db()
+    try:
+        # Get all user's enabled decks
+        enabled_decks = db.execute("""
+        SELECT id FROM decks
+        WHERE owner_id = ? AND enabled = 1
+        ORDER BY order_index, created_at
+        """, (user_id,)).fetchall()
+
+        if not enabled_decks:
+            return {}
+
+        deck_ids = [deck['id'] for deck in enabled_decks]
+
+        # Get all enabled voices from these decks
+        placeholders = ','.join('?' * len(deck_ids))
+        voices = db.execute(f"""
+        SELECT id, name, system_prompt, icon, color
+        FROM voices
+        WHERE deck_id IN ({placeholders}) AND enabled = 1
+        ORDER BY order_index, created_at
+        """, deck_ids).fetchall()
+
+        # Convert to expected format
+        voice_dict = {}
+        for voice in voices:
+            voice_dict[voice['id']] = {
+                'name': voice['name'],
+                'systemPrompt': voice['system_prompt'],
+                'icon': voice['icon'],
+                'color': voice['color']
+            }
+
+        return voice_dict
+    finally:
+        db.close()
+
 # ========== Voice CRUD ==========
 
 def create_voice(user_id: int, deck_id: str, name: str, system_prompt: str,

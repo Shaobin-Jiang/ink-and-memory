@@ -743,6 +743,23 @@ export async function forkDeck(deckId: string): Promise<{ deck_id: string }> {
 }
 
 /**
+ * Sync deck with parent template (force overwrites local changes)
+ */
+export async function syncDeck(deckId: string): Promise<{ success: boolean; synced_voices: number }> {
+  const response = await fetch(`${API_BASE}/api/decks/${deckId}/sync`, {
+    method: 'POST',
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Sync deck failed');
+  }
+
+  return await response.json();
+}
+
+/**
  * Create a new voice in a deck
  */
 export async function createVoice(data: {
