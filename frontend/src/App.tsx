@@ -9,8 +9,7 @@ import {
   FaSync,
   FaBrain, FaHeart, FaQuestion, FaCloud, FaTheaterMasks, FaEye,
   FaFistRaised, FaLightbulb, FaShieldAlt, FaWind, FaFire, FaCompass,
-  FaAlignRight,
-  FaMicrophone
+  FaAlignRight
 } from 'react-icons/fa';
 import TopNavBar from './components/TopNavBar';
 import DeckManager from './components/DeckManager';
@@ -32,7 +31,6 @@ import { useAuth } from './contexts/AuthContext';
 import LoginForm from './components/Auth/LoginForm';
 import RegisterForm from './components/Auth/RegisterForm';
 import { STORAGE_KEYS } from './constants/storageKeys';
-import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 
 // @@@ Left Toolbar Component - floating toolbelt within left margin
 function LeftToolbar({
@@ -40,17 +38,13 @@ function LeftToolbar({
   onToggleAlign,
   onShowCalendar,
   onSaveToday,
-  isAligned,
-  onVoiceToggle,
-  isListening
+  isAligned
 }: {
   onInsertAgent: () => void;
   onToggleAlign: () => void;
   onShowCalendar: () => void;
   onSaveToday: () => void;
   isAligned: boolean;
-  onVoiceToggle: () => void;
-  isListening: boolean;
 }) {
   return (
     <div style={{
@@ -184,33 +178,6 @@ function LeftToolbar({
       >
         <FaAlignRight size={18} color={isAligned ? '#1976d2' : '#333'} />
       </button>
-
-      {/* Voice Input button - fifth */}
-      <button
-        onClick={onVoiceToggle}
-        title={isListening ? "Stop Recording" : "Start Voice Input"}
-        style={{
-          width: '36px',
-          height: '36px',
-          border: 'none',
-          borderRadius: '4px',
-          backgroundColor: isListening ? '#ffebee' : '#fff',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          transition: 'all 0.2s ease',
-          animation: isListening ? 'pulse 1.5s ease-in-out infinite' : 'none'
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = isListening ? '#ffcdd2' : '#f0f0f0';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = isListening ? '#ffebee' : '#fff';
-        }}
-      >
-        <FaMicrophone size={18} color={isListening ? '#d32f2f' : '#333'} />
-      </button>
     </div>
   );
 }
@@ -301,17 +268,6 @@ export default function App() {
   const [dropdownPosition, setDropdownPosition] = useState({ x: 0, y: 0 });
   const [dropdownTriggerCellId, setDropdownTriggerCellId] = useState<string | null>(null);
   const [chatProcessing, setChatProcessing] = useState<Set<string>>(new Set());
-
-  // @@@ Voice input with speech recognition
-  const speechLang = currentLanguage === 'zh' ? 'zh-CN' : 'en-US';
-  const {
-    isListening,
-    transcript,
-    startListening,
-    stopListening,
-    resetTranscript,
-    isSupported
-  } = useSpeechRecognition({ lang: speechLang, continuous: true, interimResults: true });
 
   // @@@ Warning dialog state
   const [showWarning, setShowWarning] = useState(false);
@@ -448,44 +404,6 @@ export default function App() {
       engineRef.current.setVoiceConfigs(voiceConfigs);
     }
   }, [voiceConfigs]);
-
-  // @@@ Insert transcribed text into the last text cell
-  useEffect(() => {
-    if (transcript) {
-      const cells = engineRef.current?.getState().cells || [];
-      const textCells = cells.filter(c => c.type === 'text') as TextCell[];
-      if (textCells.length === 0) return;
-
-      const lastTextCell = textCells[textCells.length - 1];
-      const textarea = textareaRefs.current.get(lastTextCell.id);
-      if (!textarea) return;
-
-      // Insert transcript at cursor position or end of current text
-      const currentText = textarea.value;
-      const cursorPos = textarea.selectionStart || currentText.length;
-      const newText = currentText.slice(0, cursorPos) + transcript + currentText.slice(cursorPos);
-
-      // Update local text first
-      setLocalTexts(prev => {
-        const next = new Map(prev);
-        next.set(lastTextCell.id, newText);
-        return next;
-      });
-
-      // Update engine
-      engineRef.current?.updateTextCell(lastTextCell.id, newText);
-
-      // Reset transcript after insertion
-      resetTranscript();
-
-      // Update cursor position
-      setTimeout(() => {
-        const newCursorPos = cursorPos + transcript.length;
-        textarea.setSelectionRange(newCursorPos, newCursorPos);
-        textarea.focus();
-      }, 0);
-    }
-  }, [transcript, resetTranscript]);
 
   // @@@ Reload state config when returning to writing view
   useEffect(() => {
@@ -1367,20 +1285,6 @@ export default function App() {
     setCommentsAligned(prev => !prev);
   }, []);
 
-  // @@@ Handle voice input toggle
-  const handleVoiceToggle = useCallback(() => {
-    if (!isSupported) {
-      alert('Voice input is not supported in your browser. Please use Chrome, Edge, or Safari.');
-      return;
-    }
-
-    if (isListening) {
-      stopListening();
-    } else {
-      startListening();
-    }
-  }, [isListening, isSupported, startListening, stopListening]);
-
   // @@@ Handle localStorage migration
   const handleMigrateData = useCallback(async () => {
     setIsMigrating(true);
@@ -1969,8 +1873,6 @@ export default function App() {
                 onShowCalendar={() => setShowCalendarPopup(true)}
                 onSaveToday={handleSaveToday}
                 isAligned={commentsAligned}
-                onVoiceToggle={handleVoiceToggle}
-                isListening={isListening}
               />
             </div>
           )}
