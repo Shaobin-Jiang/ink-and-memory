@@ -44,6 +44,7 @@ const resources = {
         },
         pastReflections: 'Past Reflections',
         report: {
+          latest: 'Latest',
           patternCount: '{{count}} patterns'
         },
         actions: {
@@ -53,6 +54,26 @@ const resources = {
         empty: {
           title: 'Your story awaits analysis',
           description: 'Begin the journey to discover the patterns, themes, and essence woven through your words'
+        },
+        papers: {
+          echoes: { title: 'Recurring Themes', subtitle: 'Echoes' },
+          traits: { title: 'Character Traits', subtitle: 'Personality' },
+          patterns: { title: 'Behavioral Patterns', subtitle: 'Habits' }
+        },
+        statsLabels: {
+          daysCount_one: '{{count}} day',
+          daysCount_other: '{{count}} days',
+          entriesCount_one: '{{count}} entry',
+          entriesCount_other: '{{count}} entries',
+          wordsCount: '{{value}} words'
+        },
+        reportCounts: {
+          echoes_one: '{{count}} echo',
+          echoes_other: '{{count}} echoes',
+          traits_one: '{{count}} trait',
+          traits_other: '{{count}} traits',
+          patterns_one: '{{count}} pattern',
+          patterns_other: '{{count}} patterns'
         }
       },
       deck: {
@@ -92,6 +113,35 @@ const resources = {
         generating: 'Generating...',
         entryCount_one: '{{count}} entry',
         entryCount_other: '{{count}} entries'
+      },
+      timelinePlaceholders: {
+        today: 'Generates automatically overnight',
+        '-7': 'Taste buds renew every 10 days',
+        '-6': 'The liver regenerates in 6 weeks',
+        '-5': 'Stomach lining replaces itself every 5 days',
+        '-4': 'Skin cells shed every 2–4 weeks',
+        '-3': 'Red blood cells live for 120 days',
+        '-2': 'The heart beats 100,000 times a day',
+        '-1': 'Neurons can form new connections',
+        '1': 'Tomorrow is unwritten',
+        '2': 'The future is a blank page',
+        default: 'Nothing captured yet'
+      },
+      calendar: {
+        title: 'Calendar',
+        subtitle: 'Select a day to revisit your entries',
+        empty: 'No entries yet. Start writing to fill this calendar.',
+        deleteConfirm: 'Delete this entry?',
+        entriesLabel_one: '{{count}} entry',
+        entriesLabel_other: '{{count}} entries',
+        openButton: 'Open',
+        deleteButton: 'Delete',
+        close: 'Close',
+        prev: '← Prev',
+        next: 'Next →',
+        noEntriesForDate: 'No entries for this date',
+        todayLabel: 'Today',
+        deleteError: 'Failed to delete entry'
       }
     }
   },
@@ -135,6 +185,7 @@ const resources = {
         },
         pastReflections: '历史回顾',
         report: {
+          latest: '最新',
           patternCount: '{{count}} 个模式'
         },
         actions: {
@@ -144,6 +195,26 @@ const resources = {
         empty: {
           title: '等待解析的故事',
           description: '开始探索文字里反复出现的主题、情绪与线索'
+        },
+        papers: {
+          echoes: { title: '重复回响', subtitle: '主题回声' },
+          traits: { title: '性格折射', subtitle: '个性印象' },
+          patterns: { title: '行为轨迹', subtitle: '惯性与习惯' }
+        },
+        statsLabels: {
+          daysCount_one: '{{count}} 天',
+          daysCount_other: '{{count}} 天',
+          entriesCount_one: '{{count}} 篇章',
+          entriesCount_other: '{{count}} 篇章',
+          wordsCount: '{{value}} 字'
+        },
+        reportCounts: {
+          echoes_one: '{{count}} 个回声',
+          echoes_other: '{{count}} 个回声',
+          traits_one: '{{count}} 个性格',
+          traits_other: '{{count}} 个性格',
+          patterns_one: '{{count}} 个模式',
+          patterns_other: '{{count}} 个模式'
         }
       },
       deck: {
@@ -183,6 +254,35 @@ const resources = {
         generating: '生成中...',
         entryCount_one: '{{count}} 条记录',
         entryCount_other: '{{count}} 条记录'
+      },
+      timelinePlaceholders: {
+        today: '夜里自动生成你的时间线',
+        '-7': '味蕾每 10 天更新一次',
+        '-6': '肝脏在 6 周内自我修复',
+        '-5': '胃黏膜大约 5 天换新',
+        '-4': '皮肤每 2-4 周脱落再生',
+        '-3': '红细胞寿命约 120 天',
+        '-2': '心脏每天跳动 10 万次',
+        '-1': '神经元随时能建立新连接',
+        '1': '明天还没被书写',
+        '2': '未来是一张空白页',
+        default: '这里还没有记录'
+      },
+      calendar: {
+        title: '日历',
+        subtitle: '选择任意一天重新回到当时的文字',
+        empty: '这里还没有记录，动笔就会留下足迹。',
+        deleteConfirm: '确定删除这篇记录？',
+        entriesLabel_one: '{{count}} 篇',
+        entriesLabel_other: '{{count}} 篇',
+        openButton: '打开',
+        deleteButton: '删除',
+        close: '关闭',
+        prev: '← 上个月',
+        next: '下个月 →',
+        noEntriesForDate: '这一天暂无记录',
+        todayLabel: '今天',
+        deleteError: '删除失败'
       }
     }
   }

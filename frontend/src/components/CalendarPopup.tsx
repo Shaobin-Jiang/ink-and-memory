@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import { getDateLocale } from '../i18n';
 import {
   getCalendarData,
   getDateKey,
@@ -15,6 +17,8 @@ interface Props {
 
 export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
   const { isAuthenticated } = useAuth();
+  const { t, i18n } = useTranslation();
+  const dateLocale = getDateLocale(i18n.language);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(getTodayKey());
   const [calendarData, setCalendarData] = useState<Record<string, CalendarEntry[]>>({});
@@ -114,9 +118,11 @@ export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
   const handleDateClick = (dateKey: string) => {
     setSelectedDate(dateKey);
   };
+  const weekdayFormatter = new Intl.DateTimeFormat(dateLocale, { weekday: 'short' });
+  const weekdayLabels = Array.from({ length: 7 }, (_, idx) => weekdayFormatter.format(new Date(Date.UTC(2023, 0, idx + 1))));
 
   const handleDeleteEntry = async (dateKey: string, entryId: string) => {
-    if (confirm('Delete this entry?')) {
+    if (confirm(t('calendar.deleteConfirm'))) {
       if (isAuthenticated) {
         try {
           // Delete from database
@@ -154,7 +160,7 @@ export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
           setCalendarData(grouped);
         } catch (error) {
           console.error('Failed to delete from database:', error);
-          alert('Failed to delete entry');
+          alert(t('calendar.deleteError'));
         }
       } else {
         // Guest mode: delete from localStorage
@@ -203,16 +209,22 @@ export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
           borderBottom: '1px solid #e0d4c0',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center'
+          alignItems: 'center',
+          gap: '12px'
         }}>
-          <h2 style={{
-            margin: 0,
-            fontSize: '18px',
-            fontWeight: 600,
-            color: '#333'
-          }}>
-            Calendar
-          </h2>
+          <div style={{ flex: 1 }}>
+            <h2 style={{
+              margin: 0,
+              fontSize: '18px',
+              fontWeight: 600,
+              color: '#333'
+            }}>
+              {t('calendar.title')}
+            </h2>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: '#777' }}>
+              {t('calendar.subtitle')}
+            </p>
+          </div>
           <button
             onClick={onClose}
             style={{
@@ -249,14 +261,14 @@ export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
                 fontFamily: "'Excalifont', 'Xiaolai', 'Georgia', serif"
               }}
             >
-              ← Prev
+              {t('calendar.prev')}
             </button>
             <div style={{
               fontSize: '16px',
               fontWeight: 600,
               color: '#333'
             }}>
-              {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              {currentMonth.toLocaleDateString(dateLocale, { month: 'long', year: 'numeric' })}
             </div>
             <button
               onClick={handleNextMonth}
@@ -270,7 +282,7 @@ export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
                 fontFamily: "'Excalifont', 'Xiaolai', 'Georgia', serif"
               }}
             >
-              Next →
+              {t('calendar.next')}
             </button>
           </div>
 
@@ -282,15 +294,15 @@ export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
             marginBottom: '20px'
           }}>
             {/* Day headers */}
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-              <div key={day} style={{
+            {weekdayLabels.map((label, idx) => (
+              <div key={`${label}-${idx}`} style={{
                 textAlign: 'center',
                 fontSize: '12px',
                 fontWeight: 600,
                 color: '#888',
                 padding: '4px 0'
               }}>
-                {day}
+                {label}
               </div>
             ))}
 
@@ -361,8 +373,15 @@ export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
                 borderBottom: '1px solid #e0d4c0',
                 paddingBottom: '8px'
               }}>
-                {selectedDate === today ? 'Today' : selectedDate}
-                {selectedEntries.length > 0 && ` (${selectedEntries.length} ${selectedEntries.length === 1 ? 'entry' : 'entries'})`}
+                {selectedDate === today
+                  ? t('calendar.todayLabel')
+                  : new Date(selectedDate + 'T00:00:00').toLocaleDateString(dateLocale, {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      weekday: 'long'
+                    })}
+                {selectedEntries.length > 0 && ` (${t('calendar.entriesLabel', { count: selectedEntries.length })})`}
               </div>
 
               {selectedEntries.length === 0 ? (
@@ -372,7 +391,7 @@ export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
                   padding: '20px',
                   fontSize: '14px'
                 }}>
-                  No entries for this date
+                  {t('calendar.noEntriesForDate')}
                 </div>
               ) : (
                 <div style={{
@@ -383,7 +402,7 @@ export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
                   overflow: 'auto'
                 }}>
                   {selectedEntries.map((entry) => {
-                    const time = new Date(entry.timestamp).toLocaleTimeString('en-US', {
+                    const time = new Date(entry.timestamp).toLocaleTimeString(dateLocale, {
                       hour: '2-digit',
                       minute: '2-digit'
                     });
@@ -403,6 +422,7 @@ export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
                         }}
                       >
                         <button
+                          title={t('calendar.openButton')}
                           onClick={() => onLoadEntry(entry)}
                           style={{
                             flex: 1,
@@ -450,7 +470,7 @@ export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
                             e.currentTarget.style.color = '#d44';
                           }}
                         >
-                          Delete
+                          {t('calendar.deleteButton')}
                         </button>
                       </div>
                     );

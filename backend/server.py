@@ -18,6 +18,34 @@ from pydantic import BaseModel
 import database
 import auth
 
+SUPPORTED_LANGUAGES = {"en", "zh"}
+DEFAULT_LANGUAGE = "en"
+
+def normalize_language_code(language: Optional[str]) -> str:
+    if not language:
+        return DEFAULT_LANGUAGE
+    language = language.lower()
+    if language.startswith("zh"):
+        return "zh"
+    return "en"
+
+def resolve_language(_user_id: int, requested_language: Optional[str] = None) -> str:
+    """Return a supported language code, falling back to default."""
+    if requested_language:
+        code = normalize_language_code(requested_language)
+        if code in SUPPORTED_LANGUAGES:
+            return code
+    return DEFAULT_LANGUAGE
+
+def language_instruction(language_code: str, detail: str = "") -> str:
+    if language_code == "zh":
+        base = "请使用简体中文输出所有内容。"
+    else:
+        base = "Respond in English."
+    if detail:
+        return f"{base} {detail}".strip()
+    return base
+
 # ========== Session Definitions (PolyCLI) ==========
 
 @session_def(
@@ -270,15 +298,18 @@ def analyze_text(text: str, editor_session_id: str, user_id: int, applied_commen
     description="Find recurring themes and topics in all user notes",
     params={
         "all_notes": {"type": "str"},
-        "user_id": {"type": "int"}
+        "user_id": {"type": "int"},
+        "language": {"type": "str"}
     },
     category="Analysis"
 )
-def analyze_echoes(all_notes: str, user_id: int):
+def analyze_echoes(all_notes: str, user_id: int, language: str = "en"):
     """Analyze recurring themes and topics across all notes."""
     print(f"\n{'='*60}")
     print(f"🔄 analyze_echoes() called")
     print(f"   Notes length: {len(all_notes)} chars")
+    language_code = normalize_language_code(language)
+    print(f"   Language: {language_code}")
     print(f"{'='*60}\n")
 
     agent = PolyAgent(id="echoes-analyzer")
@@ -302,6 +333,7 @@ Format as a JSON array:
 ]
 
 Return ONLY the JSON array, no other text."""
+    prompt += f"\n\n{language_instruction(language_code, 'All titles, descriptions, and examples should use this language. Keep the JSON keys the same.')}"
 
     result = agent.run(prompt, model="gpt-4o-dou", cli="no-tools", tracked=True)
 
@@ -320,15 +352,18 @@ Return ONLY the JSON array, no other text."""
     description="Identify personality traits and characteristics from user notes",
     params={
         "all_notes": {"type": "str"},
-        "user_id": {"type": "int"}
+        "user_id": {"type": "int"},
+        "language": {"type": "str"}
     },
     category="Analysis"
 )
-def analyze_traits(all_notes: str, user_id: int):
+def analyze_traits(all_notes: str, user_id: int, language: str = "en"):
     """Analyze personality traits from all notes."""
     print(f"\n{'='*60}")
     print(f"👤 analyze_traits() called")
     print(f"   Notes length: {len(all_notes)} chars")
+    language_code = normalize_language_code(language)
+    print(f"   Language: {language_code}")
     print(f"{'='*60}\n")
 
     agent = PolyAgent(id="traits-analyzer")
@@ -352,6 +387,7 @@ Format as a JSON array:
 ]
 
 Return ONLY the JSON array, no other text."""
+    prompt += f"\n\n{language_instruction(language_code, 'Use this language for trait names, explanations, and evidence (JSON keys stay in English).')}"
 
     result = agent.run(prompt, model="gpt-4o-dou", cli="no-tools", tracked=True)
 
@@ -370,15 +406,18 @@ Return ONLY the JSON array, no other text."""
     description="Identify behavioral patterns and habits from user notes",
     params={
         "all_notes": {"type": "str"},
-        "user_id": {"type": "int"}
+        "user_id": {"type": "int"},
+        "language": {"type": "str"}
     },
     category="Analysis"
 )
-def analyze_patterns(all_notes: str, user_id: int):
+def analyze_patterns(all_notes: str, user_id: int, language: str = "en"):
     """Analyze behavioral patterns from all notes."""
     print(f"\n{'='*60}")
     print(f"🔍 analyze_patterns() called")
     print(f"   Notes length: {len(all_notes)} chars")
+    language_code = normalize_language_code(language)
+    print(f"   Language: {language_code}")
     print(f"{'='*60}\n")
 
     agent = PolyAgent(id="patterns-analyzer")
@@ -402,6 +441,7 @@ Format as a JSON array:
 ]
 
 Return ONLY the JSON array, no other text."""
+    prompt += f"\n\n{language_instruction(language_code, 'Use this language for pattern names, descriptions, and frequency notes (JSON keys stay in English).')}"
 
     result = agent.run(prompt, model="gpt-4o-dou", cli="no-tools", tracked=True)
 

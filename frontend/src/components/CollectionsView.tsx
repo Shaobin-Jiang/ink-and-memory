@@ -149,27 +149,16 @@ function generateTimelineDays(): TimelineDay[] {
 }
 
 // @@@ Helper function for interesting placeholders
-function getPlaceholderText(daysOffset: number): string {
-  if (daysOffset === 0) return 'Generates automatically overnight';
+function getPlaceholderText(t: (key: string, options?: any) => string, daysOffset: number): string {
+  if (daysOffset === 0) return t('timelinePlaceholders.today');
 
-  const placeholders: Record<string, string> = {
-    '-7': 'taste buds renew every 10 days',
-    '-6': 'the liver regenerates in 6 weeks',
-    '-5': 'stomach lining replaces itself every 5 days',
-    '-4': 'skin cells shed every 2-4 weeks',
-    '-3': 'red blood cells live for 120 days',
-    '-2': 'the heart beats 100,000 times a day',
-    '-1': 'neurons can form new connections',
-    '1': 'tomorrow is unwritten',
-    '2': 'the future is a blank page',
-    '3': 'time flows forward',
-    '4': 'days ahead unknown',
-    '5': 'yet to unfold',
-    '6': 'still becoming',
-    '7': 'awaiting experience'
-  };
+  const key = `timelinePlaceholders.${daysOffset}`;
+  const translation = t(key, { defaultValue: '' });
+  if (translation && translation !== key) {
+    return translation;
+  }
 
-  return placeholders[daysOffset.toString()] || (daysOffset < 0 ? 'what was has passed' : 'yet to be written');
+  return daysOffset < 0 ? t('timelinePlaceholders.default') : t('timelinePlaceholders.default');
 }
 
 // @@@ Extract and truncate beginning of text for timeline preview
@@ -754,12 +743,12 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale }: { isVisible: bool
                   }}>
                     {isGenerating ? t('timeline.generating') :
                      day.isToday && !dayData?.picture ?
-                       getPlaceholderText(day.daysOffset) :
+                       getPlaceholderText(t, day.daysOffset) :
                      textByDate.get(day.date) ?
                        getTextPreview(textByDate.get(day.date)!) :
                      dayData?.comments?.length ?
                        t('timeline.entryCount', { count: dayData.comments.length }) :
-                       getPlaceholderText(day.daysOffset)}
+                       getPlaceholderText(t, day.daysOffset)}
                   </div>
                 </div>
               </div>

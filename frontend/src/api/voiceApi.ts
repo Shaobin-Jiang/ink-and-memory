@@ -3,6 +3,7 @@
  */
 
 import { STORAGE_KEYS } from '../constants/storageKeys';
+import { LANGUAGE_STORAGE_KEY } from '../i18n';
 
 // ========== Inline Types (workaround for Vite bug) ==========
 export interface VoiceConfig {
@@ -63,6 +64,11 @@ export interface Deck {
 
 // nginx proxies /ink-and-memory/api/* to backend (8765)
 const API_BASE = '/ink-and-memory';
+
+function getUILanguage(): 'en' | 'zh' {
+  const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+  return stored === 'zh' ? 'zh' : 'en';
+}
 
 /**
  * Get auth headers for authenticated requests
@@ -201,6 +207,7 @@ export async function chatWithVoice(
  */
 export async function analyzeEchoes(allNotes: string): Promise<any[]> {
   const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+  const language = getUILanguage();
 
   const response = await fetch(`${API_BASE}/polycli/api/trigger-sync`, {
     method: 'POST',
@@ -210,7 +217,7 @@ export async function analyzeEchoes(allNotes: string): Promise<any[]> {
     },
     body: JSON.stringify({
       session_id: 'analyze_echoes',
-      params: { all_notes: allNotes },
+      params: { all_notes: allNotes, language },
       timeout: 60
     })
   });
@@ -229,6 +236,7 @@ export async function analyzeEchoes(allNotes: string): Promise<any[]> {
  */
 export async function analyzeTraits(allNotes: string): Promise<any[]> {
   const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+  const language = getUILanguage();
 
   const response = await fetch(`${API_BASE}/polycli/api/trigger-sync`, {
     method: 'POST',
@@ -238,7 +246,7 @@ export async function analyzeTraits(allNotes: string): Promise<any[]> {
     },
     body: JSON.stringify({
       session_id: 'analyze_traits',
-      params: { all_notes: allNotes },
+      params: { all_notes: allNotes, language },
       timeout: 60
     })
   });
@@ -257,6 +265,7 @@ export async function analyzeTraits(allNotes: string): Promise<any[]> {
  */
 export async function analyzePatterns(allNotes: string): Promise<any[]> {
   const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+  const language = getUILanguage();
 
   const response = await fetch(`${API_BASE}/polycli/api/trigger-sync`, {
     method: 'POST',
@@ -266,7 +275,7 @@ export async function analyzePatterns(allNotes: string): Promise<any[]> {
     },
     body: JSON.stringify({
       session_id: 'analyze_patterns',
-      params: { all_notes: allNotes },
+      params: { all_notes: allNotes, language },
       timeout: 60
     })
   });

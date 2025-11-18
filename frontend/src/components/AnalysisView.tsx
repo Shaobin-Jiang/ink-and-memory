@@ -72,6 +72,9 @@ export default function AnalysisView() {
   const { isAuthenticated } = useAuth();
   const { t, i18n } = useTranslation();
   const dateLocale = getDateLocale(i18n.language);
+  const formatDaysLabel = (count: number) => t('analysis.statsLabels.daysCount', { count });
+  const formatEntriesLabel = (count: number) => t('analysis.statsLabels.entriesCount', { count });
+  const formatWordsLabel = (value: number) => t('analysis.statsLabels.wordsCount', { value: value.toLocaleString() });
   const [allNotes, setAllNotes] = useState('');
   const [echoes, setEchoes] = useState<Echo[]>([]);
   const [traits, setTraits] = useState<Trait[]>([]);
@@ -556,7 +559,7 @@ export default function AnalysisView() {
                         textTransform: 'uppercase',
                         letterSpacing: '0.5px'
                       }}>
-                        Latest
+                        {t('analysis.report.latest')}
                       </div>
                     )}
                   </div>
@@ -567,11 +570,11 @@ export default function AnalysisView() {
                     color: '#6b5d4f',
                     marginBottom: '0.75rem'
                   }}>
-                    <div>{report.stats?.days || 0} days</div>
+                    <div>{formatDaysLabel(report.stats?.days || 0)}</div>
                     <div>·</div>
-                    <div>{report.stats?.entries || 0} entries</div>
+                    <div>{formatEntriesLabel(report.stats?.entries || 0)}</div>
                     <div>·</div>
-                    <div>{(report.stats?.words || 0).toLocaleString()} words</div>
+                    <div>{formatWordsLabel(report.stats?.words || 0)}</div>
                   </div>
                   <div style={{
                     display: 'flex',
@@ -586,7 +589,7 @@ export default function AnalysisView() {
                         borderRadius: '12px',
                         color: '#5d4a3a'
                       }}>
-                        {report.echoes.length} echoes
+                        {t('analysis.reportCounts.echoes', { count: report.echoes.length })}
                       </span>
                     )}
                     {report.traits?.length > 0 && (
@@ -597,7 +600,7 @@ export default function AnalysisView() {
                         borderRadius: '12px',
                         color: '#5d4a3a'
                       }}>
-                        {report.traits.length} traits
+                        {t('analysis.reportCounts.traits', { count: report.traits.length })}
                       </span>
                     )}
                     {report.patterns?.length > 0 && (
@@ -608,7 +611,7 @@ export default function AnalysisView() {
                         borderRadius: '12px',
                         color: '#5d4a3a'
                       }}>
-                        {t('analysis.report.patternCount', { count: report.patterns.length })}
+                        {t('analysis.reportCounts.patterns', { count: report.patterns.length })}
                       </span>
                     )}
                   </div>
@@ -774,13 +777,14 @@ function PaperStack({
   currentPaper: number;
   onPaperChange: (index: number) => void;
 }) {
+  const { t } = useTranslation();
   // @@@ Build papers array (only include non-empty ones)
   const papers = [];
 
   if (echoes.length > 0) {
     papers.push({
-      title: 'Recurring Themes',
-      subtitle: 'Echoes',
+      title: t('analysis.papers.echoes.title'),
+      subtitle: t('analysis.papers.echoes.subtitle'),
       icon: '🔄',
       content: (
         <div style={{
@@ -801,8 +805,8 @@ function PaperStack({
 
   if (traits.length > 0) {
     papers.push({
-      title: 'Character Traits',
-      subtitle: 'Personality',
+      title: t('analysis.papers.traits.title'),
+      subtitle: t('analysis.papers.traits.subtitle'),
       icon: '⭐',
       content: (
         <div style={{
@@ -823,8 +827,8 @@ function PaperStack({
 
   if (patterns.length > 0) {
     papers.push({
-      title: 'Behavioral Patterns',
-      subtitle: 'Habits',
+      title: t('analysis.papers.patterns.title'),
+      subtitle: t('analysis.papers.patterns.subtitle'),
       icon: '🌀',
       content: (
         <div style={{
