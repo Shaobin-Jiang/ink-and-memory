@@ -946,6 +946,124 @@ def delete_session(user_id: int, session_id: str):
     finally:
         db.close()
 
+# ========== Timeline Auto-Generation Helpers ==========
+
+def get_users_with_activity_on_date(target_date: str, timezone: str = 'Asia/Shanghai') -> list[int]:
+    """
+    Get user IDs who updated sessions on target_date (local timezone).
+
+    Args:
+        target_date: Date string in YYYY-MM-DD format (local timezone)
+        timezone: Timezone name (default: Asia/Shanghai for Beijing)
+
+    Returns:
+        List of user_ids with non-empty sessions on that date
+
+    @@@ Timezone handling - SQLite stores UTC, we convert to local timezone for date matching
+    """
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    db = get_db()
+    try:
+        # @@@ Convert target_date (local) to UTC range for database query
+        # Example: 2025-01-17 in Beijing = 2025-01-16 16:00 UTC to 2025-01-17 16:00 UTC
+        tz = ZoneInfo(timezone)
+        local_date = datetime.strptime(target_date, '%Y-%m-%d').replace(tzinfo=tz)
+
+        # Get start and end of day in UTC
+        start_of_day_local = local_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_day_local = local_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        start_utc = start_of_day_local.astimezone(ZoneInfo('UTC'))
+        end_utc = end_of_day_local.astimezone(ZoneInfo('UTC'))
+
+        # Query sessions updated in this UTC range
+        rows = db.execute("""
+            SELECT DISTINCT user_id, editor_state_json
+            FROM user_sessions
+            WHERE updated_at >= ? AND updated_at <= ?
+        """, (start_utc.isoformat(), end_utc.isoformat())).fetchall()
+
+        # Filter users with non-empty content
+        user_ids = []
+        for row in rows:
+            try:
+                state = json.loads(row['editor_state_json'])
+                # Check if has any text cells with content
+                has_content = any(
+                    cell.get('type') == 'text' and cell.get('content', '').strip()
+                    for cell in state.get('cells', [])
+                )
+                if has_content and row['user_id'] not in user_ids:
+                    user_ids.append(row['user_id'])
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+        return user_ids
+    finally:
+        db.close()
+
+def extract_text_from_sessions_on_date(user_id: int, target_date: str, timezone: str = 'Asia/Shanghai') -> str:
+    """
+    Extract all text from user's sessions updated on target_date (local timezone).
+
+    Args:
+        user_id: User ID
+        target_date: Date string in YYYY-MM-DD format (local timezone)
+        timezone: Timezone name (default: Asia/Shanghai for Beijing)
+
+    Returns:
+        Concatenated text from all text cells, joined with double newlines
+
+    @@@ Replicates frontend's getAllNotesFromSessions() logic but date-filtered
+    @@@ Timezone handling - SQLite stores UTC, we convert to local timezone for date matching
+    """
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    db = get_db()
+    try:
+        # @@@ Convert target_date (local) to UTC range for database query
+        tz = ZoneInfo(timezone)
+        local_date = datetime.strptime(target_date, '%Y-%m-%d').replace(tzinfo=tz)
+
+        start_of_day_local = local_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_day_local = local_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        start_utc = start_of_day_local.astimezone(ZoneInfo('UTC'))
+        end_utc = end_of_day_local.astimezone(ZoneInfo('UTC'))
+
+        # Get sessions updated in this UTC range
+        rows = db.execute("""
+            SELECT editor_state_json
+            FROM user_sessions
+            WHERE user_id = ?
+              AND updated_at >= ?
+              AND updated_at <= ?
+            ORDER BY updated_at DESC
+        """, (user_id, start_utc.isoformat(), end_utc.isoformat())).fetchall()
+
+        # Extract text from each session
+        all_text = []
+        for row in rows:
+            try:
+                state = json.loads(row['editor_state_json'])
+                # @@@ Same logic as frontend: filter text cells, extract content
+                text = '\n\n'.join(
+                    cell['content']
+                    for cell in state.get('cells', [])
+                    if cell.get('type') == 'text' and cell.get('content', '').strip()
+                )
+                if text.strip():
+                    all_text.append(text)
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+        return '\n\n'.join(all_text)
+    finally:
+        db.close()
+
 # ========== Daily Pictures ==========
 
 def save_daily_picture(user_id: int, date: str, image_base64: str, prompt: str = None, thumbnail_base64: str = None):

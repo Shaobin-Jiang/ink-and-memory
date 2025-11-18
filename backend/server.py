@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """FastAPI-based voice analysis server with sync API support."""
 
+import asyncio
 import httpx
 from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
@@ -419,15 +420,28 @@ Return ONLY the JSON array, no other text."""
     description="Generate an artistic image based on user's daily notes",
     params={
         "all_notes": {"type": "str"},
-        "user_id": {"type": "int"}
+        "user_id": {"type": "int"},
+        "target_date": {"type": "str"}  # Optional: YYYY-MM-DD format
     },
     category="Creative"
 )
-def generate_daily_picture(all_notes: str, user_id: int):
-    """Generate an image based on the essence of user's daily notes."""
+def generate_daily_picture(all_notes: str, user_id: int, target_date: str = None):
+    """Generate an image based on the essence of user's daily notes.
+
+    Args:
+        all_notes: Text content from user's notes
+        user_id: User ID
+        target_date: Optional date string (YYYY-MM-DD). If None, uses today.
+    """
+    from datetime import datetime
+
+    if target_date is None:
+        target_date = datetime.now().strftime('%Y-%m-%d')
+
     print(f"\n{'='*60}")
     print(f"🎨 generate_daily_picture() called")
     print(f"   Notes length: {len(all_notes)} chars")
+    print(f"   Target date: {target_date}")
     print(f"{'='*60}\n")
 
     import requests
@@ -653,6 +667,45 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ========== Timeline Auto-Generation Scheduler ==========
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import scheduler as timeline_scheduler
+
+# Create scheduler instance
+timeline_gen_scheduler = AsyncIOScheduler()
+
+@app.on_event("startup")
+async def startup_scheduler():
+    """Start the timeline auto-generation scheduler on app startup."""
+    print("\n" + "="*60)
+    print("📅 Starting Timeline Auto-Generation Scheduler")
+    print("   Schedule: Daily at 00:00 (midnight, Asia/Shanghai timezone)")
+    print("   Generates timeline images for previous day")
+    print("="*60 + "\n")
+
+    # @@@ asyncio.run() creates new event loop for scheduler thread
+    timeline_gen_scheduler.add_job(
+        lambda: asyncio.run(timeline_scheduler.daily_generation_job()),
+        'cron',
+        hour=0,
+        minute=0,
+        timezone='Asia/Shanghai',
+        id='daily_timeline_generation',
+        name='Generate timeline images for yesterday',
+        replace_existing=True
+    )
+
+    timeline_gen_scheduler.start()
+    print("✅ Scheduler started - next run at midnight (00:00 Asia/Shanghai)\n")
+
+@app.on_event("shutdown")
+async def shutdown_scheduler():
+    """Shutdown the scheduler gracefully."""
+    print("\n📅 Shutting down timeline scheduler...")
+    timeline_gen_scheduler.shutdown(wait=False)
+    print("✅ Scheduler shutdown complete\n")
 
 # ========== Request/Response Models ==========
 
@@ -1192,6 +1245,41 @@ def save_report(
 def get_default_voices():
     """Get default voice configurations"""
     return config.VOICE_ARCHETYPES
+
+@app.post("/api/admin/trigger-timeline-generation")
+async def trigger_timeline_generation(date: str = None, timezone: str = 'Asia/Shanghai'):
+    """
+    Manually trigger timeline image generation for a specific date (testing/admin).
+
+    Args:
+        date: Target date in YYYY-MM-DD format (defaults to yesterday)
+        timezone: Timezone name (default: Asia/Shanghai)
+
+    Returns:
+        Generation statistics: total, success, failed, skipped
+    """
+    if date is None:
+        date = timeline_scheduler.get_previous_day(timezone)
+
+    print(f"🔧 Manual trigger: Generating timeline images for {date}")
+
+    try:
+        result = await timeline_scheduler.generate_timeline_images_for_date(date, timezone)
+        return {
+            "success": True,
+            "date": date,
+            "timezone": timezone,
+            **result
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": str(e),
+            "date": date,
+            "timezone": timezone
+        }
 
 # ========== Deck & Voice Management ==========
 
