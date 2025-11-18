@@ -1,8 +1,10 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Commentor } from '../engine/EditorEngine';
 import { findNormalizedPhrase } from '../utils/textNormalize';
 import { useAuth } from '../contexts/AuthContext';
 import { STORAGE_KEYS } from '../constants/storageKeys';
+import { getDateLocale } from '../i18n';
 
 // @@@ TypeScript interfaces
 interface TimelineDay {
@@ -14,6 +16,8 @@ interface TimelineDay {
 }
 
 export default function CollectionsView({ isVisible, voiceConfigs }: { isVisible: boolean; voiceConfigs: Record<string, any> }) {
+  const { i18n } = useTranslation();
+  const dateLocale = getDateLocale(i18n.language);
   return (
     <div style={{
       width: '100%',
@@ -23,7 +27,7 @@ export default function CollectionsView({ isVisible, voiceConfigs }: { isVisible
       background: '#f8f0e6',
       overflow: 'hidden'
     }}>
-      <TimelinePage isVisible={isVisible} voiceConfigs={voiceConfigs} />
+      <TimelinePage isVisible={isVisible} voiceConfigs={voiceConfigs} dateLocale={dateLocale} />
     </div>
   );
 }
@@ -91,8 +95,8 @@ function getLocalDateString(date?: Date | string): string {
   return `${year}-${month}-${day}`;
 }
 
-function formatDate(date: Date | string): string {
-  return new Date(date).toLocaleDateString('en-US', {
+function formatDate(date: Date | string, locale: string): string {
+  return new Date(date).toLocaleDateString(locale, {
     year: 'numeric',
     month: 'short',
     day: 'numeric'
@@ -252,7 +256,8 @@ async function getAllNotesFromSessions(isAuthenticated: boolean): Promise<string
 }
 
 // @@@ Timeline page - combines pictures and comments by date
-function TimelinePage({ isVisible, voiceConfigs }: { isVisible: boolean; voiceConfigs: Record<string, any> }) {
+function TimelinePage({ isVisible, voiceConfigs, dateLocale }: { isVisible: boolean; voiceConfigs: Record<string, any>; dateLocale: string }) {
+  const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
   const [starredComments, setStarredComments] = useState<Commentor[]>([]);
   const [allCommentsByDate, setAllCommentsByDate] = useState<Map<string, Commentor[]>>(new Map());
@@ -331,7 +336,7 @@ function TimelinePage({ isVisible, voiceConfigs }: { isVisible: boolean; voiceCo
             setStarredComments(starred);
 
             // For guest mode, all comments are from today
-            const today = formatDate(new Date());
+            const today = formatDate(new Date(), dateLocale);
             const allComments = state.commentors?.filter((c: Commentor) => c.appliedAt) || [];
             const commentsByDate = new Map<string, Commentor[]>();
             if (allComments.length > 0) {
@@ -740,20 +745,20 @@ function TimelinePage({ isVisible, voiceConfigs }: { isVisible: boolean; voiceCo
                     color: day.isToday ? '#2c2c2c' : '#666',
                     marginBottom: '0.25rem'
                   }}>
-                    {day.isToday ? 'Today' : formatDate(day.date)}
+                    {day.isToday ? t('timeline.today') : formatDate(day.date, dateLocale)}
                   </div>
                   <div style={{
                     fontSize: '13px',
                     color: '#888',
                     fontStyle: (day.isToday && !dayData?.picture) || (!textByDate.get(day.date) && !dayData?.comments?.length) ? 'italic' : 'normal'
                   }}>
-                    {isGenerating ? 'Generating...' :
+                    {isGenerating ? t('timeline.generating') :
                      day.isToday && !dayData?.picture ?
                        getPlaceholderText(day.daysOffset) :
                      textByDate.get(day.date) ?
                        getTextPreview(textByDate.get(day.date)!) :
                      dayData?.comments?.length ?
-                       `${dayData.comments.length} ${dayData.comments.length === 1 ? 'entry' : 'entries'}` :
+                       t('timeline.entryCount', { count: dayData.comments.length }) :
                        getPlaceholderText(day.daysOffset)}
                   </div>
                 </div>
@@ -1037,7 +1042,7 @@ function TimelinePage({ isVisible, voiceConfigs }: { isVisible: boolean; voiceCo
                 fontSize: '13px',
                 color: '#666'
               }}>
-                {new Date(viewingImage.date).toLocaleDateString('en-US', {
+                {new Date(viewingImage.date).toLocaleDateString(dateLocale, {
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric'

@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getCalendarData } from '../utils/calendarStorage';
 import { analyzeEchoes, analyzeTraits, analyzePatterns, saveAnalysisReport, getAnalysisReports } from '../api/voiceApi';
 import type { TextCell } from '../engine/EditorEngine';
 import { useAuth } from '../contexts/AuthContext';
 import { STORAGE_KEYS } from '../constants/storageKeys';
+import { getDateLocale } from '../i18n';
 
 // @@@ Constants
 const MAX_SAVED_REPORTS = 10;
@@ -68,6 +70,8 @@ interface AnalysisReport {
 
 export default function AnalysisView() {
   const { isAuthenticated } = useAuth();
+  const { t, i18n } = useTranslation();
+  const dateLocale = getDateLocale(i18n.language);
   const [allNotes, setAllNotes] = useState('');
   const [echoes, setEchoes] = useState<Echo[]>([]);
   const [traits, setTraits] = useState<Trait[]>([]);
@@ -381,10 +385,10 @@ export default function AnalysisView() {
             e.currentTarget.style.boxShadow = '0 4px 16px rgba(139,115,85,0.2), inset 0 1px 0 rgba(255,255,255,0.8)';
             e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,250,240,0.9) 100%)';
           }}
-          title="Back to Dashboard"
+          title={t('analysis.backTitle')}
         >
           <span style={{ fontSize: '16px' }}>←</span>
-          <span>Back</span>
+          <span>{t('analysis.backButton')}</span>
         </button>
 
         <DecorativeInkSpots />
@@ -440,7 +444,7 @@ export default function AnalysisView() {
             letterSpacing: '-0.5px',
             textShadow: '2px 2px 0px rgba(139,115,85,0.1)'
           }}>
-            Reflections
+            {t('analysis.title')}
           </h1>
           <div style={{
             width: '80px',
@@ -457,7 +461,7 @@ export default function AnalysisView() {
             maxWidth: '500px',
             margin: '0 auto'
           }}>
-            Patterns and insights woven through your words
+            {t('analysis.subtitle')}
           </p>
         </div>
 
@@ -469,9 +473,9 @@ export default function AnalysisView() {
           marginBottom: '3rem',
           flexWrap: 'wrap'
         }}>
-          <VintageStatLabel label="Days" value={stats.totalDays} />
-          <VintageStatLabel label="Entries" value={stats.totalEntries} />
-          <VintageStatLabel label="Words" value={stats.totalWords.toLocaleString()} />
+          <VintageStatLabel label={t('analysis.stats.days')} value={stats.totalDays} />
+          <VintageStatLabel label={t('analysis.stats.entries')} value={stats.totalEntries} />
+          <VintageStatLabel label={t('analysis.stats.words')} value={stats.totalWords.toLocaleString()} />
         </div>
 
         {/* Saved Reports History */}
@@ -486,7 +490,7 @@ export default function AnalysisView() {
               fontFamily: 'Georgia, serif',
               fontStyle: 'italic'
             }}>
-              Past Reflections
+              {t('analysis.pastReflections')}
             </h2>
             <div style={{
               display: 'grid',
@@ -533,7 +537,7 @@ export default function AnalysisView() {
                       color: '#8B7355',
                       fontWeight: 500
                     }}>
-                      {new Date(report.timestamp).toLocaleDateString('en-US', {
+                      {new Date(report.timestamp).toLocaleDateString(dateLocale, {
                         month: 'short',
                         day: 'numeric',
                         year: 'numeric',
@@ -604,7 +608,7 @@ export default function AnalysisView() {
                         borderRadius: '12px',
                         color: '#5d4a3a'
                       }}>
-                        {report.patterns.length} patterns
+                        {t('analysis.report.patternCount', { count: report.patterns.length })}
                       </span>
                     )}
                   </div>
@@ -651,7 +655,7 @@ export default function AnalysisView() {
               }
             }}
           >
-            {anyLoading ? 'Reflecting...' : 'Generate New Analysis'}
+            {anyLoading ? t('analysis.actions.generating') : t('analysis.actions.generate')}
           </button>
         </div>
 
@@ -706,7 +710,7 @@ export default function AnalysisView() {
               fontStyle: 'italic',
               fontWeight: 300
             }}>
-              Your story awaits analysis
+              {t('analysis.empty.title')}
             </p>
             <p style={{
               fontSize: '14px',
@@ -715,7 +719,7 @@ export default function AnalysisView() {
               margin: '0 auto',
               lineHeight: 1.7
             }}>
-              Begin the journey to discover the patterns, themes, and essence woven through your words
+              {t('analysis.empty.description')}
             </p>
           </div>
         )}
@@ -1347,4 +1351,3 @@ function PatternCard({ pattern }: { pattern: Pattern }) {
     </div>
   );
 }
-

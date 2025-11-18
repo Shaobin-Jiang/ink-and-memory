@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StateCube } from './StateCube';
 import type { StateConfig } from '../api/voiceApi';
+import { getDateLocale } from '../i18n';
 
 interface Props {
   stateConfig: StateConfig;
@@ -10,6 +12,7 @@ interface Props {
 }
 
 export default function StateChooser({ stateConfig, selectedState, createdAt, onChoose }: Props) {
+  const { i18n } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(!selectedState);
   const [shouldAnimate, setShouldAnimate] = useState(false);
   const [isFadingOut, setIsFadingOut] = useState(false);
@@ -32,7 +35,8 @@ export default function StateChooser({ stateConfig, selectedState, createdAt, on
     ? new Date(createdAt + 'T00:00:00')
     : new Date();
 
-  const dateString = displayDate.toLocaleDateString('zh-CN', {
+  const dateLocale = getDateLocale(i18n.language);
+  const dateString = displayDate.toLocaleDateString(dateLocale, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',

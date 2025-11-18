@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { VoiceConfig, StateConfig, UserState } from '../api/voiceApi';
 import { saveVoices, clearVoices, getMetaPrompt, saveMetaPrompt, getStateConfig, saveStateConfig } from '../utils/voiceStorage';
 import {
@@ -60,6 +61,7 @@ interface Props {
 }
 
 export default function VoiceSettings({ defaultVoices, currentVoices, currentMetaPrompt, currentStateConfig, onSave }: Props) {
+  const { t } = useTranslation();
   const [voices, setVoices] = useState<Record<string, VoiceConfig>>({});
   const [metaPrompt, setMetaPrompt] = useState<string>('');
   const [stateConfig, setStateConfig] = useState<StateConfig>(getStateConfig());
@@ -92,6 +94,7 @@ export default function VoiceSettings({ defaultVoices, currentVoices, currentMet
       setStateConfig(getStateConfig());
     }
   }, [currentStateConfig]);
+
 
   const handleSave = async () => {
     console.log('VoiceSettings: handleSave called');
@@ -203,6 +206,7 @@ export default function VoiceSettings({ defaultVoices, currentVoices, currentMet
     input.click();
   };
 
+
   const handleAddState = () => {
     const newId = `state_${Date.now()}`;
     setStateConfig({
@@ -249,7 +253,7 @@ export default function VoiceSettings({ defaultVoices, currentVoices, currentMet
             fontFamily: 'Georgia, serif',
             letterSpacing: '-0.5px'
           }}>
-            The Voice Council
+            {t('settings.heading')}
           </h1>
           <p style={{
             margin: '6px 0 0',
@@ -257,7 +261,7 @@ export default function VoiceSettings({ defaultVoices, currentVoices, currentMet
             color: '#666',
             fontStyle: 'italic'
           }}>
-            Configure your inner voices, the ones that comment on everything you write
+            {t('settings.subheading')}
           </p>
         </div>
 
@@ -295,9 +299,9 @@ export default function VoiceSettings({ defaultVoices, currentVoices, currentMet
                 }
               }}
             >
-              {tab === 'voices' && '🎭 Voices'}
-              {tab === 'meta' && '📜 Meta Prompt'}
-              {tab === 'states' && '💭 User States'}
+              {tab === 'voices' && t('settings.tabs.voices')}
+              {tab === 'meta' && t('settings.tabs.meta')}
+              {tab === 'states' && t('settings.tabs.states')}
             </button>
           ))}
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   listDecks,
   getDeck,
@@ -67,6 +68,7 @@ interface Props {
 }
 
 export default function DeckManager({ onUpdate }: Props) {
+  const { t } = useTranslation();
   const [decks, setDecks] = useState<Deck[]>([]);
   const [communityDecks, setCommunityDecks] = useState<Deck[]>([]);
   const [expandedDecks, setExpandedDecks] = useState<Set<string>>(new Set());
@@ -165,7 +167,7 @@ export default function DeckManager({ onUpdate }: Props) {
   }
 
   async function handleDeleteDeck(deckId: string) {
-    if (!confirm('Delete this deck and all its voices?')) return;
+    if (!confirm(t('deck.confirm.delete'))) return;
 
     try {
       await deleteDeck(deckId);
@@ -177,7 +179,7 @@ export default function DeckManager({ onUpdate }: Props) {
   }
 
   async function handleSyncDeck(deckId: string) {
-    if (!confirm('Sync with original template? This will overwrite any changes you made to this deck.')) return;
+    if (!confirm(t('deck.confirm.sync'))) return;
 
     try {
       const result = await syncDeck(deckId);
@@ -340,7 +342,7 @@ export default function DeckManager({ onUpdate }: Props) {
             cursor: 'pointer'
           }}
         >
-          Retry
+          {t('deck.actions.retry')}
         </button>
       </div>
     );
@@ -363,7 +365,7 @@ export default function DeckManager({ onUpdate }: Props) {
           fontFamily: 'Georgia, serif',
           letterSpacing: '-0.5px'
         }}>
-          Voice Decks
+          {t('deck.heading')}
         </h1>
         <p style={{
           margin: '6px 0 0',
@@ -371,7 +373,7 @@ export default function DeckManager({ onUpdate }: Props) {
           color: '#666',
           fontStyle: 'italic'
         }}>
-          Organize your inner voices into thematic collections
+          {t('deck.subheading')}
         </p>
       </div>
 
@@ -403,7 +405,7 @@ export default function DeckManager({ onUpdate }: Props) {
               if (!creatingDeck) e.currentTarget.style.background = '#4a90e2';
             }}
           >
-            {creatingDeck ? 'Creating...' : '+ Create New Deck'}
+            {creatingDeck ? t('deck.actions.creating') : t('deck.actions.create')}
           </button>
 
           {/* My Decks Section Header */}
@@ -413,7 +415,7 @@ export default function DeckManager({ onUpdate }: Props) {
             fontWeight: '500',
             color: '#2c2c2c'
           }}>
-            My Decks
+            {t('deck.sections.myDecks')}
           </h3>
 
           {/* User's Decks */}
@@ -422,6 +424,8 @@ export default function DeckManager({ onUpdate }: Props) {
             const isSystem = !!deck.is_system; // @@@ Convert to boolean to prevent React from rendering "0"
             const Icon = iconMap[deck.icon as keyof typeof iconMap] || FaBrain;
             const colorHex = COLORS[deck.color as keyof typeof COLORS]?.hex || '#4a90e2';
+            const voiceCount = deck.voice_count || deck.voices?.length || 0;
+            const voiceCountLabel = t('deck.labels.voiceCount', { count: voiceCount });
 
             return (
               <div
@@ -494,7 +498,7 @@ export default function DeckManager({ onUpdate }: Props) {
                           padding: '2px 8px',
                           borderRadius: 4
                         }}>
-                          System
+                          {t('deck.labels.system')}
                         </span>
                       )}
                     </div>
@@ -502,14 +506,14 @@ export default function DeckManager({ onUpdate }: Props) {
                       fontSize: 14,
                       color: '#666'
                     }}>
-                      {deck.description || 'No description'}
+                      {deck.description || t('deck.labels.noDescription')}
                     </div>
                     <div style={{
                       fontSize: 12,
                       color: '#999',
                       marginTop: 4
                     }}>
-                      {deck.voice_count || deck.voices?.length || 0} voices
+                      {voiceCountLabel}
                     </div>
                   </div>
 
@@ -594,7 +598,7 @@ export default function DeckManager({ onUpdate }: Props) {
                               e.currentTarget.style.boxShadow = 'none';
                             }}
                           >
-                            Sync with Original
+                            {t('deck.actions.sync')}
                           </button>
                         )}
                         {/* @@@ Publish button for user-owned decks */}
@@ -621,7 +625,7 @@ export default function DeckManager({ onUpdate }: Props) {
                             e.currentTarget.style.boxShadow = 'none';
                           }}
                         >
-                          {deck.published ? 'Unpublish' : 'Publish to Community'}
+                          {deck.published ? t('deck.actions.unpublish') : t('deck.actions.publish')}
                         </button>
                         <button
                           onClick={() => handleDeleteDeck(deck.id)}
@@ -645,7 +649,7 @@ export default function DeckManager({ onUpdate }: Props) {
                             e.currentTarget.style.boxShadow = 'none';
                           }}
                         >
-                          Delete Deck
+                          {t('deck.actions.delete')}
                         </button>
                       </>
                     )}
@@ -1006,7 +1010,7 @@ export default function DeckManager({ onUpdate }: Props) {
                           }
                         }}
                       >
-                        {creatingVoice === deck.id ? 'Adding...' : '+ Add Voice to this Deck'}
+                        {creatingVoice === deck.id ? t('deck.actions.addingVoice') : t('deck.actions.addVoice')}
                       </button>
                     )}
 
@@ -1036,7 +1040,7 @@ export default function DeckManager({ onUpdate }: Props) {
             fontWeight: '500',
             color: '#2c2c2c'
           }}>
-            Community Decks ({communityDecks.length})
+            {t('deck.sections.community', { count: communityDecks.length })}
           </h3>
 
           {communityDecks.length === 0 ? (
@@ -1047,7 +1051,7 @@ export default function DeckManager({ onUpdate }: Props) {
               textAlign: 'center',
               padding: '32px 0'
             }}>
-              No published decks yet. Be the first to share!
+              {t('deck.communityEmpty')}
             </p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1105,7 +1109,11 @@ export default function DeckManager({ onUpdate }: Props) {
                             fontSize: 12,
                             color: '#999'
                           }}>
-                            by {deck.author_name || 'Anonymous'} · {deck.voice_count || 0} voices · {deck.install_count || 0} installs
+                            {t('deck.communityMeta', {
+                              author: deck.author_name || t('deck.labels.anonymous'),
+                              voices: deck.voice_count || 0,
+                              installs: deck.install_count || 0
+                            })}
                           </div>
                         </div>
                       </div>
@@ -1133,7 +1141,7 @@ export default function DeckManager({ onUpdate }: Props) {
                           e.currentTarget.style.boxShadow = 'none';
                         }}
                       >
-                        Install
+                        {t('deck.actions.install')}
                       </button>
                     </div>
                   </div>

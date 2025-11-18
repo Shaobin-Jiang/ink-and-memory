@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 
 interface Props {
@@ -8,6 +9,7 @@ interface Props {
 
 export default function LeftSidebar({ currentView, onViewChange }: Props) {
   const { user, logout } = useAuth();
+  const { t } = useTranslation();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const buttonStyle = (isActive: boolean) => ({
     height: '100%',
@@ -82,7 +84,7 @@ export default function LeftSidebar({ currentView, onViewChange }: Props) {
         <button
           onClick={() => onViewChange('writing')}
           style={buttonStyle(currentView === 'writing')}
-          title="Writing"
+          title={t('nav.writing')}
           onMouseEnter={e => {
             if (currentView !== 'writing') {
               e.currentTarget.style.background = 'rgba(44, 44, 44, 0.04)';
@@ -94,13 +96,13 @@ export default function LeftSidebar({ currentView, onViewChange }: Props) {
             }
           }}
         >
-          Writing
+          {t('nav.writing')}
         </button>
 
         <button
           onClick={() => onViewChange('timeline')}
           style={buttonStyle(currentView === 'timeline')}
-          title="Timeline"
+          title={t('nav.timeline')}
           onMouseEnter={e => {
             if (currentView !== 'timeline') {
               e.currentTarget.style.background = 'rgba(44, 44, 44, 0.04)';
@@ -112,13 +114,13 @@ export default function LeftSidebar({ currentView, onViewChange }: Props) {
             }
           }}
         >
-          Timeline
+          {t('nav.timeline')}
         </button>
 
         <button
           onClick={() => onViewChange('analysis')}
           style={buttonStyle(currentView === 'analysis')}
-          title="Reflections"
+          title={t('nav.analysis')}
           onMouseEnter={e => {
             if (currentView !== 'analysis') {
               e.currentTarget.style.background = 'rgba(44, 44, 44, 0.04)';
@@ -130,13 +132,13 @@ export default function LeftSidebar({ currentView, onViewChange }: Props) {
             }
           }}
         >
-          Reflections
+          {t('nav.analysis')}
         </button>
 
         <button
           onClick={() => onViewChange('decks')}
           style={buttonStyle(currentView === 'decks')}
-          title="Decks"
+          title={t('nav.decks')}
           onMouseEnter={e => {
             if (currentView !== 'decks') {
               e.currentTarget.style.background = 'rgba(44, 44, 44, 0.04)';
@@ -148,7 +150,7 @@ export default function LeftSidebar({ currentView, onViewChange }: Props) {
             }
           }}
         >
-          Decks
+          {t('nav.decks')}
         </button>
       </div>
 
@@ -180,7 +182,7 @@ export default function LeftSidebar({ currentView, onViewChange }: Props) {
             e.currentTarget.style.background = 'transparent';
           }
         }}
-        title="Settings"
+        title={t('nav.settings')}
       >
         <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
           <path d="M17.502 10c0 .34-.03.66-.07.98l2.11 1.65c.19.15.24.42.12.64l-2 3.46c-.12.22-.39.3-.61.22l-2.49-1c-.52.4-1.08.73-1.69.98l-.38 2.65c-.03.24-.24.42-.49.42h-4c-.25 0-.46-.18-.49-.42l-.38-2.65c-.61-.25-1.17-.59-1.69-.98l-2.49 1c-.23.09-.49 0-.61-.22l-2-3.46c-.13-.22-.07-.49.12-.64l2.11-1.65c-.04-.32-.07-.65-.07-.98 0-.33.03-.66.07-.98L.93 7.37c-.19-.15-.24-.42-.12-.64l2-3.46c.12-.22.39-.3.61-.22l2.49 1c.52-.4 1.08-.73 1.69-.98l.38-2.65C7.01.18 7.22 0 7.47 0h4c.25 0 .46.18.49.42l.38 2.65c.61.25 1.17.59 1.69.98l2.49-1c.23-.09.49 0 .61.22l2 3.46c.12.22.07.49-.12.64l-2.11 1.65c.04.32.07.65.07.98zm-7.5 3c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z"/>

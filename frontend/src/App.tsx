@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { EditorEngine } from './engine/EditorEngine';
 import type { EditorState, Commentor, TextCell } from './engine/EditorEngine';
 import { ChatWidget } from './engine/ChatWidget';
@@ -198,6 +199,8 @@ const iconMap = {
   compass: FaCompass,
 };
 
+const LANGUAGE_CODES: Array<'en' | 'zh'> = ['en', 'zh'];
+
 // @@@ Color map with gradient colors for watercolor effect
 const colorMap: Record<string, { gradient: string; text: string; glow: string }> = {
   blue: {
@@ -231,12 +234,19 @@ const colorMap: Record<string, { gradient: string; text: string; glow: string }>
 export default function App() {
   const isMobile = useMobile();
   const { isAuthenticated, isLoading } = useAuth();
+  const { t, i18n } = useTranslation();
 
   // @@@ Auth screen state
   const [authScreen, setAuthScreen] = useState<'login' | 'register'>('login');
   const [guestMode, setGuestMode] = useState(false);
   const [showMigrationDialog, setShowMigrationDialog] = useState(false);
   const [isMigrating, setIsMigrating] = useState(false);
+  const currentLanguage = (i18n.language || 'en').split('-')[0];
+  const handleUILanguageChange = useCallback((code: string) => {
+    if (code !== currentLanguage) {
+      i18n.changeLanguage(code);
+    }
+  }, [currentLanguage, i18n]);
 
   const [currentView, setCurrentView] = useState<'writing' | 'settings' | 'timeline' | 'analysis' | 'decks'>('writing');
   const [showCalendarPopup, setShowCalendarPopup] = useState(false);
@@ -2343,7 +2353,6 @@ export default function App() {
             maxWidth: 800,
             width: '100%'
           }}>
-            {/* Language Toggle (Placeholder) */}
             <section style={{ marginBottom: 48 }}>
               <h2 style={{
                 fontSize: 24,
@@ -2352,7 +2361,7 @@ export default function App() {
                 marginBottom: 16,
                 fontFamily: 'Georgia, "Times New Roman", serif'
               }}>
-                Settings
+                {t('nav.settings')}
               </h2>
               <div style={{
                 background: 'rgba(255, 255, 255, 0.5)',
@@ -2360,50 +2369,62 @@ export default function App() {
                 borderRadius: 8,
                 padding: 24
               }}>
-                <div style={{ marginBottom: 16 }}>
+                <div style={{ marginBottom: 12 }}>
                   <label style={{
                     fontSize: 14,
                     fontWeight: 500,
                     color: '#2c2c2c',
-                    marginBottom: 8,
+                    marginBottom: 6,
                     display: 'block',
                     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
                   }}>
                     Language / 语言
                   </label>
-                  <div style={{ display: 'flex', gap: 12 }}>
-                    <button
-                      style={{
-                        padding: '8px 16px',
-                        background: '#2c2c2c',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: 6,
-                        fontSize: 14,
-                        fontWeight: 500,
-                        cursor: 'pointer',
-                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-                      }}
-                    >
-                      English
-                    </button>
-                    <button
-                      style={{
-                        padding: '8px 16px',
-                        background: 'transparent',
-                        color: '#666',
-                        border: '1px solid #d0c4b0',
-                        borderRadius: 6,
-                        fontSize: 14,
-                        fontWeight: 500,
-                        cursor: 'pointer',
-                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-                      }}
-                    >
-                      中文
-                    </button>
-                  </div>
+                  <p style={{
+                    margin: 0,
+                    fontSize: 13,
+                    color: '#666',
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                  }}>
+                    {t('settings.language.description')}
+                  </p>
                 </div>
+
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  {LANGUAGE_CODES.map(code => {
+                    const isActive = currentLanguage === code;
+                    return (
+                      <button
+                        key={code}
+                        onClick={() => handleUILanguageChange(code)}
+                        style={{
+                          padding: '8px 16px',
+                          background: isActive ? '#2c2c2c' : 'transparent',
+                          color: isActive ? '#fff' : '#666',
+                          border: isActive ? 'none' : '1px solid #d0c4b0',
+                          borderRadius: 6,
+                          fontSize: 14,
+                          fontWeight: 500,
+                          cursor: isActive ? 'default' : 'pointer',
+                          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                          boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        {t(`settings.language.options.${code}`)}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <p style={{
+                  marginTop: 12,
+                  fontSize: 12,
+                  color: '#8a7a69',
+                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                }}>
+                  {t('settings.language.preview')}
+                </p>
               </div>
             </section>
 
