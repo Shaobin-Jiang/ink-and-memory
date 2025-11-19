@@ -1367,6 +1367,14 @@ class VoiceUpdateRequest(BaseModel):
 class VoiceForkRequest(BaseModel):
     target_deck_id: str
 
+# ========== Friend System Models ==========
+
+class UseInviteCodeRequest(BaseModel):
+    code: str
+
+class FriendRequestActionRequest(BaseModel):
+    pass  # No body needed, just request_id in URL
+
 @app.get("/api/decks")
 def list_decks(published: bool = False, current_user: dict = Depends(get_current_user)):
     """Get decks - either user's own or published community decks"""
@@ -1523,6 +1531,74 @@ def fork_voice(voice_id: str, request: VoiceForkRequest, current_user: dict = De
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+# ========== Friend System Endpoints ==========
+
+@app.post("/api/friends/invite/generate")
+def generate_friend_invite(current_user: dict = Depends(get_current_user)):
+    """Generate a new friend invite code (6 chars, 7 days validity)"""
+    user_id = current_user['user_id']
+    result = database.generate_invite_code(user_id)
+    return result
+
+@app.post("/api/friends/invite/use")
+def use_friend_invite(request: UseInviteCodeRequest, current_user: dict = Depends(get_current_user)):
+    """Use an invite code to send a friend request"""
+    user_id = current_user['user_id']
+    result = database.use_invite_code(request.code, user_id)
+    if not result.get('success'):
+        raise HTTPException(status_code=400, detail=result.get('error'))
+    return result
+
+@app.get("/api/friends/requests")
+def get_friend_requests(current_user: dict = Depends(get_current_user)):
+    """Get all pending friend requests for current user"""
+    user_id = current_user['user_id']
+    requests = database.get_friend_requests(user_id)
+    return {"requests": requests}
+
+@app.post("/api/friends/requests/{request_id}/accept")
+def accept_friend_request(request_id: int, current_user: dict = Depends(get_current_user)):
+    """Accept a friend request"""
+    user_id = current_user['user_id']
+    result = database.accept_friend_request(request_id, user_id)
+    if not result.get('success'):
+        raise HTTPException(status_code=400, detail=result.get('error'))
+    return result
+
+@app.post("/api/friends/requests/{request_id}/reject")
+def reject_friend_request(request_id: int, current_user: dict = Depends(get_current_user)):
+    """Reject a friend request"""
+    user_id = current_user['user_id']
+    result = database.reject_friend_request(request_id, user_id)
+    if not result.get('success'):
+        raise HTTPException(status_code=400, detail=result.get('error'))
+    return result
+
+@app.get("/api/friends")
+def get_friends(current_user: dict = Depends(get_current_user)):
+    """Get all accepted friends for current user"""
+    user_id = current_user['user_id']
+    friends = database.get_friends(user_id)
+    return {"friends": friends}
+
+@app.delete("/api/friends/{friend_id}")
+def remove_friend(friend_id: int, current_user: dict = Depends(get_current_user)):
+    """Remove a friend"""
+    user_id = current_user['user_id']
+    result = database.remove_friend(user_id, friend_id)
+    if not result.get('success'):
+        raise HTTPException(status_code=400, detail=result.get('error'))
+    return result
+
+@app.get("/api/friends/{friend_id}/timeline")
+def get_friend_timeline(friend_id: int, limit: int = 30, current_user: dict = Depends(get_current_user)):
+    """Get a friend's timeline pictures (only if friends)"""
+    user_id = current_user['user_id']
+    timeline = database.get_friend_timeline(user_id, friend_id, limit)
+    if timeline is None:
+        raise HTTPException(status_code=403, detail="Not friends or friend not found")
+    return {"pictures": timeline}
+
 # @@@ Removed /api/analyze wrapper - frontend now calls /polycli/api/trigger-sync directly
 
 # @@@ Removed /api/chat wrapper - frontend now calls /polycli/api/trigger-sync directly
@@ -1575,6 +1651,15 @@ if __name__ == "__main__":
     print("    PUT  /api/voices/{id}     - Update voice")
     print("    DELETE /api/voices/{id}   - Delete voice")
     print("    POST /api/voices/{id}/fork - Fork voice")
+    print("  Friend System:")
+    print("    POST /api/friends/invite/generate - Generate invite code")
+    print("    POST /api/friends/invite/use      - Use invite code")
+    print("    GET  /api/friends/requests        - Get friend requests")
+    print("    POST /api/friends/requests/{id}/accept - Accept request")
+    print("    POST /api/friends/requests/{id}/reject - Reject request")
+    print("    GET  /api/friends                 - Get friends list")
+    print("    DELETE /api/friends/{id}          - Remove friend")
+    print("    GET  /api/friends/{id}/timeline   - Get friend's timeline")
     print("\n  PolyCLI (AI Functions):")
     print("    /polycli                  - Control panel UI")
     print("    /polycli/api/trigger-sync - Direct sync API")

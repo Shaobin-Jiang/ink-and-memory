@@ -115,7 +115,10 @@ CRITICAL RULES:
 - DO NOT suggest any rejected phrases: {overlapped_phrases}
 - DO NOT CREATE NEW VOICE NAMES - Only use from the available list
 - Return null if nothing is worth commenting on
-- Write in the SAME LANGUAGE as the text
+- Write your comment in the EXACT SAME LANGUAGE as the user's text
+  * If user writes in Chinese, comment in Chinese
+  * If user writes in English, comment in English
+  * Match the user's language REGARDLESS of what language the voice's name or system prompt uses
 
 IMPORTANT: Return voice_id only (e.g., "holder"). Do NOT fill voice_name - it will be auto-filled."""
 

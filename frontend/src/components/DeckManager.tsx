@@ -277,7 +277,7 @@ export default function DeckManager({ onUpdate }: Props) {
   async function handlePublishToggle(deckId: string) {
     try {
       const result = await publishDeck(deckId);
-      alert(result.published ? '✅ Deck published to community!' : '✅ Deck unpublished');
+      alert(result.published ? t('deck.messages.publishSuccess') : t('deck.messages.unpublishSuccess'));
       await loadDecks(true);
       await loadCommunityDecks();
       onUpdate?.();
@@ -291,7 +291,7 @@ export default function DeckManager({ onUpdate }: Props) {
   async function handleInstallDeck(deckId: string) {
     try {
       await forkDeck(deckId);
-      alert('✅ Deck installed to your collection!');
+      alert(t('deck.messages.installSuccess'));
       await loadDecks(true);
       await loadCommunityDecks();
       onUpdate?.();
@@ -1507,17 +1507,15 @@ export default function DeckManager({ onUpdate }: Props) {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 style={{ marginBottom: '16px', fontSize: '18px', fontWeight: 600 }}>
-              ⚠️ Publish Deck Warning
+              {t('deck.publishWarning.heading')}
             </h3>
 
             <p style={{ marginBottom: '16px', lineHeight: '1.5', fontSize: '14px' }}>
-              Publishing will <strong>break the parent link</strong>. This deck will become
-              a standalone deck in the community store.
+              <span dangerouslySetInnerHTML={{ __html: t('deck.publishWarning.body') }} />
             </p>
 
             <p style={{ marginBottom: '16px', color: '#e74c3c', fontSize: '13px', lineHeight: '1.5' }}>
-              This action cannot be undone. You can unpublish later, but the parent
-              link will remain broken.
+              {t('deck.publishWarning.note')}
             </p>
 
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
@@ -1534,7 +1532,7 @@ export default function DeckManager({ onUpdate }: Props) {
                   fontWeight: 500
                 }}
               >
-                Cancel
+                {t('deck.publishWarning.cancel')}
               </button>
               <button
                 onClick={() => handlePublishToggle(publishWarning)}
@@ -1549,7 +1547,7 @@ export default function DeckManager({ onUpdate }: Props) {
                   fontWeight: 500
                 }}
               >
-                Publish Anyway
+                {t('deck.publishWarning.confirm')}
               </button>
             </div>
           </div>

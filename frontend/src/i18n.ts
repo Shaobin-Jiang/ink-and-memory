@@ -11,6 +11,7 @@ const resources = {
         timeline: 'Timeline',
         analysis: 'Reflections',
         decks: 'Decks',
+        friends: 'Friends',
         settings: 'Settings'
       },
       settings: {
@@ -106,6 +107,18 @@ const resources = {
         confirm: {
           delete: 'Delete this deck and all its voices?',
           sync: 'Sync with original template? This will overwrite any changes you made to this deck.'
+        },
+        publishWarning: {
+          heading: '⚠️ Publish Deck Warning',
+          body: 'Publishing will <strong>break the parent link</strong>. This deck becomes a standalone deck in the community store.',
+          note: 'This action cannot be undone. Even if you unpublish later, the parent link stays broken.',
+          cancel: 'Cancel',
+          confirm: 'Publish Anyway'
+        },
+        messages: {
+          publishSuccess: '✅ Deck published to community!',
+          unpublishSuccess: '✅ Deck unpublished',
+          installSuccess: '✅ Deck installed to your collection!'
         }
       },
       timeline: {
@@ -142,6 +155,37 @@ const resources = {
         noEntriesForDate: 'No entries for this date',
         todayLabel: 'Today',
         deleteError: 'Failed to delete entry'
+      },
+      friends: {
+        myFriends: 'My Friends',
+        requests: 'Requests',
+        addFriend: 'Add Friend',
+        noFriends: 'No friends yet. Use an invite code to add your first friend!',
+        noRequests: 'No pending friend requests',
+        loading: 'Loading...',
+        viewTimeline: 'View Timeline',
+        remove: 'Remove',
+        accept: 'Accept',
+        reject: 'Reject',
+        generateInvite: 'Generate Invite Code',
+        generateHint: 'Share this code with someone to let them send you a friend request. Code expires in 7 days.',
+        generate: 'Generate Code',
+        generating: 'Generating...',
+        copy: 'Copy',
+        codeCopied: 'Code copied to clipboard!',
+        expiresAt: 'Expires',
+        useInvite: 'Use Invite Code',
+        useHint: 'Enter a friend\'s invite code to send them a friend request.',
+        codePlaceholder: 'Enter 6-character code',
+        send: 'Send Request',
+        sending: 'Sending...',
+        requestSent: 'Friend request sent!',
+        confirmRemove: 'Remove this friend?',
+        generateError: 'Failed to generate invite code',
+        useCodeError: 'Invalid or expired code',
+        acceptError: 'Failed to accept request',
+        rejectError: 'Failed to reject request',
+        removeError: 'Failed to remove friend'
       }
     }
   },
@@ -152,6 +196,7 @@ const resources = {
         timeline: '时间线',
         analysis: '回顾',
         decks: '卡组',
+        friends: '好友',
         settings: '设置'
       },
       settings: {
@@ -247,6 +292,18 @@ const resources = {
         confirm: {
           delete: '确定删除这个卡组以及所有声线？',
           sync: '与原模板同步？这会覆盖你在卡组里的修改。'
+        },
+        publishWarning: {
+          heading: '⚠️ 发布提醒',
+          body: '发布后会<strong>断开与父卡组的链接</strong>，并在社区中以独立卡组存在。',
+          note: '此操作不可逆，就算之后取消发布，父子链接也无法恢复。',
+          cancel: '取消',
+          confirm: '仍要发布'
+        },
+        messages: {
+          publishSuccess: '✅ 已发布到社区！',
+          unpublishSuccess: '✅ 已取消发布',
+          installSuccess: '✅ 已安装到你的卡组'
         }
       },
       timeline: {
@@ -283,6 +340,37 @@ const resources = {
         noEntriesForDate: '这一天暂无记录',
         todayLabel: '今天',
         deleteError: '删除失败'
+      },
+      friends: {
+        myFriends: '我的好友',
+        requests: '好友申请',
+        addFriend: '添加好友',
+        noFriends: '还没有好友。使用邀请码添加你的第一个好友吧！',
+        noRequests: '暂无待处理的好友申请',
+        loading: '加载中...',
+        viewTimeline: '查看时间线',
+        remove: '移除',
+        accept: '接受',
+        reject: '拒绝',
+        generateInvite: '生成邀请码',
+        generateHint: '将此邀请码分享给朋友，让对方向你发送好友申请。邀请码 7 天后过期。',
+        generate: '生成邀请码',
+        generating: '生成中...',
+        copy: '复制',
+        codeCopied: '邀请码已复制到剪贴板！',
+        expiresAt: '过期时间',
+        useInvite: '使用邀请码',
+        useHint: '输入朋友的邀请码，向对方发送好友申请。',
+        codePlaceholder: '输入 6 位邀请码',
+        send: '发送申请',
+        sending: '发送中...',
+        requestSent: '好友申请已发送！',
+        confirmRemove: '确定要移除这位好友吗？',
+        generateError: '生成邀请码失败',
+        useCodeError: '邀请码无效或已过期',
+        acceptError: '接受申请失败',
+        rejectError: '拒绝申请失败',
+        removeError: '移除好友失败'
       }
     }
   }

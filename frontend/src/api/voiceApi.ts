@@ -899,8 +899,9 @@ export async function loadVoicesFromDecks(): Promise<Record<string, VoiceConfig>
           for (const voice of fullDeck.voices) {
             if (!voice.enabled) continue;
 
-            // Convert Voice to VoiceConfig format
-            voiceConfigs[voice.name] = {
+            // @@@ Convert Voice to VoiceConfig format
+            // Key by voice.id (UUID) so backend can find it in database
+            voiceConfigs[voice.id] = {
               name: voice.name,
               systemPrompt: voice.system_prompt,
               enabled: voice.enabled,
@@ -921,4 +922,166 @@ export async function loadVoicesFromDecks(): Promise<Record<string, VoiceConfig>
     // Return empty object if loading fails - app can fall back to localStorage
     return {};
   }
+}
+
+// ========== Friend System API ==========
+
+export interface FriendInvite {
+  code: string;
+  expires_at: string;
+  created_at: string;
+}
+
+export interface FriendRequest {
+  id: number;
+  requester_id: number;
+  requester_name: string;
+  requester_email: string;
+  created_at: string;
+}
+
+export interface Friend {
+  id: number;
+  user_id: number;
+  friend_id: number;
+  friend_name: string;
+  friend_email: string;
+  created_at: string;
+}
+
+/**
+ * Generate a new friend invite code (6 chars, 7 days validity)
+ */
+export async function generateInviteCode(): Promise<FriendInvite> {
+  const response = await fetch(`${API_BASE}/api/friends/invite/generate`, {
+    method: 'POST',
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Generate invite code failed');
+  }
+
+  return await response.json();
+}
+
+/**
+ * Use an invite code to send a friend request
+ */
+export async function useInviteCode(code: string): Promise<{ success: boolean; message: string }> {
+  const response = await fetch(`${API_BASE}/api/friends/invite/use`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ code })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Use invite code failed');
+  }
+
+  return await response.json();
+}
+
+/**
+ * Get all pending friend requests for current user
+ */
+export async function getFriendRequests(): Promise<FriendRequest[]> {
+  const response = await fetch(`${API_BASE}/api/friends/requests`, {
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Get friend requests failed');
+  }
+
+  const data = await response.json();
+  return data.requests;
+}
+
+/**
+ * Accept a friend request
+ */
+export async function acceptFriendRequest(requestId: number): Promise<{ success: boolean }> {
+  const response = await fetch(`${API_BASE}/api/friends/requests/${requestId}/accept`, {
+    method: 'POST',
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Accept friend request failed');
+  }
+
+  return await response.json();
+}
+
+/**
+ * Reject a friend request
+ */
+export async function rejectFriendRequest(requestId: number): Promise<{ success: boolean }> {
+  const response = await fetch(`${API_BASE}/api/friends/requests/${requestId}/reject`, {
+    method: 'POST',
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Reject friend request failed');
+  }
+
+  return await response.json();
+}
+
+/**
+ * Get all accepted friends
+ */
+export async function getFriends(): Promise<Friend[]> {
+  const response = await fetch(`${API_BASE}/api/friends`, {
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Get friends failed');
+  }
+
+  const data = await response.json();
+  return data.friends;
+}
+
+/**
+ * Remove a friend
+ */
+export async function removeFriend(friendId: number): Promise<{ success: boolean }> {
+  const response = await fetch(`${API_BASE}/api/friends/${friendId}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Remove friend failed');
+  }
+
+  return await response.json();
+}
+
+/**
+ * Get friend's timeline (pictures)
+ */
+export async function getFriendTimeline(friendId: number, limit: number = 30): Promise<any[]> {
+  const response = await fetch(`${API_BASE}/api/friends/${friendId}/timeline?limit=${limit}`, {
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Get friend timeline failed');
+  }
+
+  const data = await response.json();
+  return data.pictures;
 }

@@ -18,6 +18,7 @@ import { saveEntryToToday, type CalendarEntry } from './utils/calendarStorage';
 import CollectionsView from './components/CollectionsView';
 import AnalysisView from './components/AnalysisView';
 import AboutView from './components/AboutView';
+import FriendsView from './components/FriendsView';
 import AgentDropdown from './components/AgentDropdown';
 import ChatWidgetUI from './components/ChatWidgetUI';
 import StateChooser from './components/StateChooser';
@@ -2425,6 +2426,21 @@ export default function App() {
           overflow: 'hidden'
         }}>
           <AnalysisView />
+        </div>
+      )}
+
+      {currentView === 'friends' && (
+        <div style={{
+          position: 'fixed',
+          top: 48,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: '#f8f0e6',
+          display: 'flex',
+          overflow: 'hidden'
+        }}>
+          <FriendsView isVisible={currentView === 'friends'} />
         </div>
       )}
 
