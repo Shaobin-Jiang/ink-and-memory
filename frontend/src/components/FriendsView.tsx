@@ -245,7 +245,9 @@ export default function FriendsView({ isVisible, onViewFriendTimeline }: Props) 
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {friends.map(friend => (
-                  <div key={friend.id} style={{
+                  <div
+                    key={friend.friend_id ?? friend.id ?? ('friend-' + (friend.friend_email ?? 'unknown'))}
+                    style={{
                     background: '#fff',
                     border: '1px solid #d0c4b0',
                     borderRadius: 8,
@@ -342,7 +344,9 @@ export default function FriendsView({ isVisible, onViewFriendTimeline }: Props) 
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {requests.map(request => (
-                  <div key={request.id} style={{
+                  <div
+                    key={request.id ?? ('request-' + (request.requester_email ?? 'unknown'))}
+                    style={{
                     background: '#fff',
                     border: '1px solid #d0c4b0',
                     borderRadius: 8,

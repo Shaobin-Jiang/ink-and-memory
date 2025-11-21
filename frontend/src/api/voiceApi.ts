@@ -500,6 +500,7 @@ export async function savePreferences(preferences: {
   meta_prompt?: string;
   state_config?: any;
   selected_state?: string;
+  timezone?: string;
 }): Promise<void> {
   const response = await fetch(`${API_BASE}/api/preferences`, {
     method: 'POST',

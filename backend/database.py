@@ -96,11 +96,17 @@ def create_tables(db):
       meta_prompt TEXT,
       state_config_json TEXT,
       selected_state TEXT,
+      timezone TEXT,
       first_login_completed INTEGER DEFAULT 0,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
     )
     """)
+
+    try:
+        db.execute("ALTER TABLE user_preferences ADD COLUMN timezone TEXT")
+    except Exception:
+        pass
 
     # Auth sessions
     db.execute("""
@@ -1290,7 +1296,7 @@ def get_friend_picture_full(user_id: int, friend_id: int, date: str):
 # ========== User Preferences ==========
 
 def save_preferences(user_id: int, voice_configs: dict = None, meta_prompt: str = None,
-                    state_config: dict = None, selected_state: str = None):
+                    state_config: dict = None, selected_state: str = None, timezone: str = None):
     """Save or update user preferences."""
     db = get_db()
     try:
@@ -1313,6 +1319,9 @@ def save_preferences(user_id: int, voice_configs: dict = None, meta_prompt: str 
             if selected_state is not None:
                 updates.append("selected_state = ?")
                 params.append(selected_state)
+            if timezone is not None:
+                updates.append("timezone = ?")
+                params.append(timezone)
 
             if updates:
                 updates.append("updated_at = CURRENT_TIMESTAMP")
@@ -1321,13 +1330,14 @@ def save_preferences(user_id: int, voice_configs: dict = None, meta_prompt: str 
         else:
             # Insert
             db.execute("""
-            INSERT INTO user_preferences (user_id, voice_configs_json, meta_prompt, state_config_json, selected_state)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO user_preferences (user_id, voice_configs_json, meta_prompt, state_config_json, selected_state, timezone)
+            VALUES (?, ?, ?, ?, ?, ?)
             """, (user_id,
                   json.dumps(voice_configs) if voice_configs else None,
                   meta_prompt,
                   json.dumps(state_config) if state_config else None,
-                  selected_state))
+                  selected_state,
+                  timezone))
 
         db.commit()
     finally:
@@ -1339,7 +1349,7 @@ def get_preferences(user_id: int):
     try:
         row = db.execute("""
         SELECT voice_configs_json, meta_prompt, state_config_json, selected_state,
-               first_login_completed, updated_at
+               timezone, first_login_completed, updated_at
         FROM user_preferences
         WHERE user_id = ?
         """, (user_id,)).fetchone()

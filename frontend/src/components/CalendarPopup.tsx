@@ -8,6 +8,7 @@ import {
   deleteEntry,
   type CalendarEntry
 } from '../utils/calendarStorage';
+import { loadSessionsGroupedByDate } from '../utils/sessionGrouping';
 import { useAuth } from '../contexts/AuthContext';
 
 interface Props {
@@ -31,38 +32,7 @@ export default function CalendarPopup({ onLoadEntry, onClose, currentEntryId }: 
         try {
           // Load from database - sessions imported during migration
           const { listSessions, getSession } = await import('../api/voiceApi');
-          const sessions = await listSessions();
-
-          // Group sessions by date (extract from session name which has format "YYYY-MM-DD - FirstLine")
-          const grouped: Record<string, CalendarEntry[]> = {};
-
-          for (const session of sessions) {
-            // @@@ Skip unnamed sessions (working drafts not saved yet)
-            if (!session.name) continue;
-
-            const fullSession = await getSession(session.id);
-
-            // @@@ BUGFIX: Extract date from timestamp (format: "2025-11-02 10:42:17" or "2025-11-02T10:42:17")
-            // Just take first 10 characters to get "YYYY-MM-DD"
-            let dateKey = session.created_at?.substring(0, 10) || getTodayKey();
-
-            // If name starts with YYYY-MM-DD format, use that
-            if (session.name && /^\d{4}-\d{2}-\d{2}/.test(session.name)) {
-              dateKey = session.name.split(' - ')[0];
-            }
-
-            if (!grouped[dateKey]) {
-              grouped[dateKey] = [];
-            }
-
-            grouped[dateKey].push({
-              id: session.id,
-              timestamp: new Date(session.created_at || Date.now()).getTime(),
-              state: fullSession.editor_state,
-              firstLine: session.name
-            });
-          }
-
+          const grouped = await loadSessionsGroupedByDate(listSessions, getSession, { requireName: true });
           setCalendarData(grouped);
         } catch (error) {
           console.error('Failed to load calendar from database:', error);

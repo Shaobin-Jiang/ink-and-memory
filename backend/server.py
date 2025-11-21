@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """FastAPI-based voice analysis server with sync API support."""
 
+import os
+import time
+
+os.environ.setdefault('TZ', 'UTC')
+if hasattr(time, 'tzset'):
+    time.tzset()
+
 import asyncio
 import httpx
 from fastapi import FastAPI, HTTPException, Depends, Header
@@ -1242,7 +1249,8 @@ def save_preferences_endpoint(
         voice_configs=request.get('voice_configs'),
         meta_prompt=request.get('meta_prompt'),
         state_config=request.get('state_config'),
-        selected_state=request.get('selected_state')
+        selected_state=request.get('selected_state'),
+        timezone=request.get('timezone')
     )
 
     return {"success": True}

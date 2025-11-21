@@ -299,6 +299,50 @@ export default function App() {
   const prevInspirationRef = useRef<VoiceInspiration | null>(null);
   const [_suggestionSnapshot, setSuggestionSnapshot] = useState<string>('');  // Not used yet
   const suggestionTimerRef = useRef<number | null>(null);
+  const browserTimezone = useMemo(() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    } catch {
+      return 'UTC';
+    }
+  }, []);
+  const timezoneSyncRef = useRef<string | null>(null);
+
+  const ensureStateForPersistence = useCallback((): EditorState | null => {
+    if (engineRef.current) {
+      const engineState = engineRef.current.getState();
+      if (!engineState.createdAt) {
+        engineState.createdAt = new Date().toISOString().split('T')[0];
+        setState({ ...engineState });
+      }
+      return engineState;
+    }
+
+    if (state && !state.createdAt) {
+      const today = new Date().toISOString().split('T')[0];
+      const nextState = { ...state, createdAt: today };
+      setState(nextState);
+      return nextState;
+    }
+
+    return state;
+  }, [state]);
+
+  const getFirstLineFromState = useCallback((editorState: EditorState) => {
+    const firstTextCell = editorState.cells.find(c => c.type === 'text') as TextCell | undefined;
+    return firstTextCell?.content.split('\n')[0].trim() || 'Untitled';
+  }, []);
+
+  const saveSessionToDatabase = useCallback(async (editorState: EditorState, firstLine?: string) => {
+    const line = firstLine ?? getFirstLineFromState(editorState);
+    const { saveSession } = await import('./api/voiceApi');
+    const sessionId = editorState.currentEntryId || crypto.randomUUID();
+    await saveSession(sessionId, editorState, line);
+    if (engineRef.current) {
+      engineRef.current.setCurrentEntryId(sessionId);
+    }
+    return sessionId;
+  }, [getFirstLineFromState]);
 
   // @@@ Detect if this is a new inspiration appearing (different from previous)
   // Only check appearing when NOT disappearing (to avoid conflict)
@@ -462,6 +506,29 @@ export default function App() {
 
     checkMigration();
   }, [isAuthenticated, isLoading]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const timezone = browserTimezone || 'UTC';
+    if (!timezone) return;
+    if (timezoneSyncRef.current === timezone) return;
+
+    const syncTimezone = async () => {
+      try {
+        const { getPreferences, savePreferences } = await import('./api/voiceApi');
+        const prefs = await getPreferences();
+        if ((prefs?.timezone || 'UTC') !== timezone) {
+          await savePreferences({ timezone });
+        }
+      } catch (error) {
+        console.error('Failed to sync timezone preference:', error);
+      } finally {
+        timezoneSyncRef.current = timezone;
+      }
+    };
+
+    syncTimezone();
+  }, [isAuthenticated, browserTimezone]);
 
   // Initialize engine
   useEffect(() => {
@@ -670,32 +737,27 @@ export default function App() {
 
   // @@@ Auto-save to database for authenticated users
   useEffect(() => {
-    if (!isAuthenticated || !state) return;
-
-    // @@@ currentEntryId is always defined after engine initialization
-    if (!state.currentEntryId) {
-      console.error('BUG: currentEntryId should always be defined after engine init');
-      return;
-    }
+    if (!isAuthenticated) return;
 
     const autoSaveTimer = setTimeout(async () => {
-      try {
-        // @@@ Auto-save: update content only, preserve existing name
-        // Date comes from created_at, so we don't include it in name
-        const firstTextCell = state.cells.find(c => c.type === 'text') as TextCell | undefined;
-        const firstLine = firstTextCell?.content.split('\n')[0].trim() || 'Untitled';
+      const currentState = ensureStateForPersistence();
+      if (!currentState) return;
+      if (!currentState.currentEntryId) {
+        console.error('BUG: currentEntryId should always be defined after engine init');
+        return;
+      }
 
-        const { saveSession } = await import('./api/voiceApi');
-        const sessionId = state.currentEntryId || crypto.randomUUID();
-        await saveSession(sessionId, state, firstLine);
+      try {
+        const firstLine = getFirstLineFromState(currentState);
+        await saveSessionToDatabase(currentState, firstLine);
         console.log('Auto-saved to database');
       } catch (error) {
         console.error('Auto-save failed:', error);
       }
-    }, 3000); // Save 3 seconds after last change
+    }, 3000);
 
     return () => clearTimeout(autoSaveTimer);
-  }, [state, isAuthenticated]);
+  }, [ensureStateForPersistence, getFirstLineFromState, isAuthenticated, saveSessionToDatabase, state]);
 
   // @@@ Group comments by 2-row blocks, accounting for widgets between cells
   const commentGroups = useMemo(() => {
@@ -1152,31 +1214,25 @@ export default function App() {
   }, [isAuthenticated]);
 
   const handleSaveToday = useCallback(async () => {
-    if (!state || !engineRef.current) return;
+    if (!engineRef.current) return;
+    const currentState = ensureStateForPersistence();
+    if (!currentState) return;
 
     try {
-      // @@@ Save to database if authenticated, localStorage if guest
+      const hadExistingId = Boolean(currentState.currentEntryId);
+      let updatedFlag = hadExistingId;
+
       if (isAuthenticated) {
-        // @@@ Save with title only (date comes from created_at)
-        const firstTextCell = state.cells.find(c => c.type === 'text') as TextCell | undefined;
-        const firstLine = firstTextCell?.content.split('\n')[0].trim() || 'Untitled';
-
-        // Save to database
-        const { saveSession } = await import('./api/voiceApi');
-        const sessionId = state.currentEntryId || crypto.randomUUID();
-        await saveSession(sessionId, state, firstLine);
-
-        // Update current entry ID in engine state
-        engineRef.current.setCurrentEntryId(sessionId);
+        const firstLine = getFirstLineFromState(currentState);
+        const savedSessionId = await saveSessionToDatabase(currentState, firstLine);
+        engineRef.current.setCurrentEntryId(savedSessionId);
       } else {
-        // Guest mode: save to localStorage
-        const entryId = saveEntryToToday(state);
+        const entryId = saveEntryToToday(currentState);
         engineRef.current.setCurrentEntryId(entryId);
       }
 
-      // Show toast notification
       const toast = document.createElement('div');
-      toast.textContent = state.currentEntryId ? 'Saved (updated)' : 'Saved';
+      toast.textContent = updatedFlag ? 'Saved (updated)' : 'Saved';
       toast.style.cssText = `
         position: fixed;
         top: 70px;
@@ -1221,7 +1277,7 @@ export default function App() {
         setTimeout(() => document.body.removeChild(toast), 300);
       }, 2000);
     }
-  }, [state, isAuthenticated]);
+  }, [ensureStateForPersistence, getFirstLineFromState, isAuthenticated, saveSessionToDatabase]);
 
   const handleLoadEntry = useCallback((entry: CalendarEntry) => {
     if (engineRef.current) {
@@ -1233,6 +1289,11 @@ export default function App() {
       const loadedState = entry.state;
       if (loadedState.selectedState !== undefined) {
         setSelectedState(loadedState.selectedState);
+      }
+
+      if (!loadedState.createdAt) {
+        loadedState.createdAt = new Date().toISOString().split('T')[0];
+        engineRef.current.loadState(loadedState);
       }
 
       // @@@ Trigger textarea resize after loading entry

@@ -6,6 +6,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { getDateLocale } from '../i18n';
 import type { Friend } from '../api/voiceApi';
+import { extractFirstLine } from '../utils/calendarStorage';
+import { loadSessionsGroupedByDate } from '../utils/sessionGrouping';
 
 // @@@ TypeScript interfaces
 interface TimelineDay {
@@ -222,6 +224,7 @@ interface TimelineCardProps {
   isGenerating: boolean;
   placeholder: string;
   textByDate: Map<string, string>;
+  firstLineByDate: Map<string, string>;
   dateLocale: string;
   t: (key: string, options?: any) => string;
   onImageClick: (picture: TimelinePicture) => void;
@@ -237,6 +240,7 @@ function renderTimelineCard({
   isGenerating,
   placeholder,
   textByDate,
+  firstLineByDate,
   dateLocale,
   t,
   onImageClick,
@@ -245,7 +249,8 @@ function renderTimelineCard({
   customDescription
 }: TimelineCardProps) {
   const cardCursor = dayData?.picture && !isGenerating ? 'pointer' : 'default';
-  const textContent = dayData && textByDate.get(day.date);
+  const textContent = textByDate.get(day.date);
+  const firstLine = firstLineByDate.get(day.date);
   const commentCount = dayData?.comments?.length || 0;
 
   let description = placeholder;
@@ -255,6 +260,8 @@ function renderTimelineCard({
     description = t('timeline.generating');
   } else if (day.isToday && !dayData?.picture) {
     description = placeholder;
+  } else if (firstLine) {
+    description = firstLine;
   } else if (textContent) {
     description = getTextPreview(textContent);
   } else if (commentCount > 0) {
@@ -456,6 +463,7 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, friendToSelect, onF
   const [starredComments, setStarredComments] = useState<Commentor[]>([]);
   const [allCommentsByDate, setAllCommentsByDate] = useState<Map<string, Commentor[]>>(new Map());
   const [textByDate, setTextByDate] = useState<Map<string, string>>(new Map());
+  const [firstLineByDate, setFirstLineByDate] = useState<Map<string, string>>(new Map());
   const [pictures, setPictures] = useState<TimelinePicture[]>([]);
   const [generatingForDate, setGeneratingForDate] = useState<string | null>(null);
   const [viewingImage, setViewingImage] = useState<{ base64: string; full_base64?: string; prompt: string; date: string; origin?: 'self' | 'friend'; friendId?: number } | null>(null);
@@ -489,9 +497,10 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, friendToSelect, onF
   const [, setLoadingFriends] = useState(false);
   const [friendLoadError, setFriendLoadError] = useState<string | null>(null);
   const [, setFriendTimelineError] = useState<string | null>(null);
-  const [, setLoadingFriendTimeline] = useState(false);
+  const [loadingFriendTimeline, setLoadingFriendTimeline] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const emptyTextMap = useMemo(() => new Map<string, string>(), []);
+  const emptyFirstLineMap = useMemo(() => new Map<string, string>(), []);
   const allTimelineDays = useMemo(() => generateTimelineDays(), []);
   const filteredFriends = useMemo(() => {
     const term = friendSearchTerm.trim().toLowerCase();
@@ -547,6 +556,27 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, friendToSelect, onF
   const orderedRecentFriends = orderedFriendIds
     .map(id => friendMap.get(id))
     .filter((friend): friend is Friend => Boolean(friend));
+  const friendTimelineByDate = useMemo(() => {
+    const map = new Map<string, TimelineEntryData>();
+    friendPictures.forEach(pic => {
+      map.set(pic.date, { picture: pic, comments: [] });
+    });
+    return map;
+  }, [friendPictures]);
+  const friendHasVisibleCards = useMemo(() => {
+    if (!selectedFriendId) return false;
+    return allTimelineDays.some(day => Boolean(friendTimelineByDate.get(day.date)?.picture));
+  }, [selectedFriendId, friendTimelineByDate, allTimelineDays]);
+
+  useEffect(() => {
+    console.debug('[Timeline] friend hint state', {
+      selectedFriendId,
+      isFriendPickerOpen,
+      friendPicturesCount: friendPictures.length,
+      loadingFriendTimeline,
+      visibleFriendCards: friendHasVisibleCards
+    });
+  }, [selectedFriendId, isFriendPickerOpen, friendPictures.length, loadingFriendTimeline, friendHasVisibleCards]);
 
   useEffect(() => {
     const loadTimelineData = async () => {
@@ -554,22 +584,26 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, friendToSelect, onF
       if (isAuthenticated) {
         try {
           const { listSessions, getSession } = await import('../api/voiceApi');
-          const sessions = await listSessions();
+          const groupedEntries = await loadSessionsGroupedByDate(listSessions, getSession, { requireName: true });
+
           const allStarred: Commentor[] = [];
           const commentsByDate = new Map<string, Commentor[]>();
           const textByDateMap = new Map<string, string>();
+          const firstLineMap = new Map<string, string>();
 
-          for (const session of sessions) {
-            try {
-              const fullSession = await getSession(session.id);
-              const comments = fullSession.editor_state?.commentors || [];
+          Object.entries(groupedEntries).forEach(([dateKey, entries]) => {
+            if (entries.length > 0 && !firstLineMap.has(dateKey)) {
+              firstLineMap.set(dateKey, entries[0].firstLine);
+            }
 
-              // Collect starred comments for timeline cards
+            entries.forEach(entry => {
+              const state = entry.state;
+              if (!state) return;
+
+              const comments = state.commentors || [];
               const starred = comments.filter((c: Commentor) => c.feedback === 'star');
               allStarred.push(...starred);
 
-              // Group ALL comments by date (for image modal display)
-              // @@@ Use each comment's appliedAt timestamp (not session's created_at) to handle timezone properly
               comments.filter((c: Commentor) => c.appliedAt).forEach((comment: Commentor) => {
                 const commentDate = new Date(comment.appliedAt || comment.computedAt);
                 const date = getLocalDateString(commentDate);
@@ -579,29 +613,23 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, friendToSelect, onF
                 commentsByDate.get(date)!.push(comment);
               });
 
-              // @@@ Extract text from session and group by creation date
-              if (fullSession.editor_state?.createdAt && fullSession.editor_state?.cells) {
-                const sessionDate = fullSession.editor_state.createdAt; // Already in YYYY-MM-DD format
-                const text = fullSession.editor_state.cells
-                  .filter((c: any) => c.type === 'text')
-                  .map((c: any) => c.content)
-                  .join(' ')
-                  .trim();
+              const text = state.cells
+                ?.filter((c: any) => c.type === 'text')
+                .map((c: any) => c.content)
+                .join(' ')
+                .trim();
 
-                if (text) {
-                  // Append text for this date (sessions can have multiple entries per day)
-                  const existingText = textByDateMap.get(sessionDate) || '';
-                  textByDateMap.set(sessionDate, existingText ? `${existingText} ${text}` : text);
-                }
+              if (text) {
+                const existingText = textByDateMap.get(dateKey) || '';
+                textByDateMap.set(dateKey, existingText ? `${existingText} ${text}` : text);
               }
-            } catch (err) {
-              console.error(`Failed to load session ${session.id}:`, err);
-            }
-          }
+            });
+          });
 
           setStarredComments(allStarred);
           setAllCommentsByDate(commentsByDate);
           setTextByDate(textByDateMap);
+          setFirstLineByDate(firstLineMap);
         } catch (error) {
           console.error('Failed to load comments from database:', error);
         }
@@ -622,9 +650,30 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, friendToSelect, onF
               commentsByDate.set(today, allComments);
             }
             setAllCommentsByDate(commentsByDate);
+
+            const guestTextMap = new Map<string, string>();
+            const guestFirstLineMap = new Map<string, string>();
+            if (state.cells) {
+              const dateKey = state.createdAt || getLocalDateString();
+              const combined = state.cells
+                .filter((c: any) => c.type === 'text')
+                .map((c: any) => c.content)
+                .join(' ')
+                .trim();
+
+              if (combined) {
+                guestTextMap.set(dateKey, combined);
+              }
+              guestFirstLineMap.set(dateKey, extractFirstLine(state));
+            }
+            setTextByDate(guestTextMap);
+            setFirstLineByDate(guestFirstLineMap);
           } catch (e) {
             console.error('Failed to load comments:', e);
           }
+        } else {
+          setTextByDate(new Map());
+          setFirstLineByDate(new Map());
         }
       }
 
@@ -745,12 +794,6 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, friendToSelect, onF
     }
     timelineByDate.get(date)!.picture = pic;
   });
-
-  const friendTimelineByDate = new Map<string, TimelineEntryData>();
-  friendPictures.forEach(pic => {
-    friendTimelineByDate.set(pic.date, { picture: pic, comments: [] });
-  });
-
   useEffect(() => {
     if (!isAuthenticated || !selectedFriendId) {
       setFriendPictures([]);
@@ -1034,7 +1077,7 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, friendToSelect, onF
           const isActive = friend.friend_id === selectedFriendId;
           return (
             <button
-              key={friend.id}
+              key={friend.friend_id}
               onClick={() => handleFriendSelection(friend.friend_id)}
               style={{
                 width: '42px',
@@ -1106,7 +1149,7 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, friendToSelect, onF
         </div>
       )}
 
-      {selectedFriendId && !isFriendPickerOpen && friendPictures.length === 0 && (
+      {selectedFriendId && !isFriendPickerOpen && !loadingFriendTimeline && !friendHasVisibleCards && (
         <div style={{
           position: 'fixed',
           right: '6.5rem',
@@ -1237,7 +1280,7 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, friendToSelect, onF
                 const isSelected = friend.friend_id === selectedFriendId;
                 return (
                   <button
-                    key={friend.id}
+                    key={friend.friend_id}
                     onClick={() => handleFriendSelection(friend.friend_id)}
                     style={{
                       border: isSelected ? '1px solid #2c2c2c' : '1px solid #d0c4b0',
@@ -1307,6 +1350,7 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, friendToSelect, onF
                   onImageClick: handleImageClick,
                   onGenerate: handleGenerateForDate,
                   textByDate,
+                  firstLineByDate,
                   t,
                   dateLocale,
                   placeholder
@@ -1355,6 +1399,7 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, friendToSelect, onF
                     isGenerating: false,
                     onImageClick: handleFriendImageClick,
                     textByDate: emptyTextMap,
+                    firstLineByDate: emptyFirstLineMap,
                     t,
                     dateLocale,
                     placeholder,

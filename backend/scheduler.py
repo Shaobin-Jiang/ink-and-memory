@@ -6,6 +6,13 @@ Generates daily timeline images for users at midnight (Beijing time by default).
 Runs concurrently for all users with activity on the previous day.
 """
 
+import os
+import time
+
+os.environ.setdefault('TZ', 'UTC')
+if hasattr(time, 'tzset'):
+    time.tzset()
+
 import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
