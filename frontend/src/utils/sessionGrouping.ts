@@ -1,37 +1,29 @@
 import type { CalendarEntry } from './calendarStorage';
 import { extractFirstLine, getTodayKey } from './calendarStorage';
 import type { EditorState } from '../engine/EditorEngine';
+import { getLocalDayKey, parseFlexibleTimestamp } from './timezone';
 
 type ListSessionsFn = () => Promise<any[]>;
 type GetSessionFn = (id: string) => Promise<any>;
 
-function normalizeTimestamp(raw?: string | null): Date | null {
-  if (!raw) return null;
-  const normalized = raw.includes('T') ? raw : raw.replace(' ', 'T');
-  const withZone = /[zZ]$/.test(normalized) ? normalized : `${normalized}Z`;
-  const parsed = Date.parse(withZone);
-  if (Number.isNaN(parsed)) {
-    return null;
-  }
-  return new Date(parsed);
+function getSessionTimestamp(sessionMeta: any, fullSession: any): Date | null {
+  const stateTimestamp = parseFlexibleTimestamp(fullSession?.editor_state?.createdAt);
+  if (stateTimestamp) return stateTimestamp;
+
+  const createdAt = parseFlexibleTimestamp(fullSession?.created_at || sessionMeta?.created_at);
+  if (createdAt) return createdAt;
+
+  const updatedAt = parseFlexibleTimestamp(fullSession?.updated_at || sessionMeta?.updated_at);
+  return updatedAt;
 }
 
-export function getSessionDateKey(session: any, state?: EditorState): string {
-  const name = session?.name;
-  if (name && /^\d{4}-\d{2}-\d{2}/.test(name)) {
-    return name.split(' - ')[0];
+function getSessionDateKey(session: any, fullSession: any, timezone: string): string {
+  const timestamp = getSessionTimestamp(session, fullSession);
+  if (!timestamp) {
+    console.warn('Session missing timestamp data', session?.id);
+    return getTodayKey();
   }
-
-  if (state?.createdAt) {
-    return state.createdAt;
-  }
-
-  const timestamp = normalizeTimestamp(session?.updated_at || session?.created_at);
-  if (timestamp) {
-    return timestamp.toISOString().substring(0, 10);
-  }
-
-  return getTodayKey();
+  return getLocalDayKey(timestamp, timezone) ?? getTodayKey();
 }
 
 function getEntryFirstLine(sessionName: string | undefined, state?: EditorState): string {
@@ -47,9 +39,9 @@ function getEntryFirstLine(sessionName: string | undefined, state?: EditorState)
 export async function loadSessionsGroupedByDate(
   listSessions: ListSessionsFn,
   getSession: GetSessionFn,
-  options: { requireName?: boolean } = {}
+  options: { requireName?: boolean; timezone?: string } = {}
 ): Promise<Record<string, CalendarEntry[]>> {
-  const { requireName = false } = options;
+  const { requireName = false, timezone = 'UTC' } = options;
   const sessions = await listSessions();
   const grouped: Record<string, CalendarEntry[]> = {};
 
@@ -60,13 +52,13 @@ export async function loadSessionsGroupedByDate(
       const fullSession = await getSession(session.id);
       if (!fullSession?.editor_state) continue;
 
-      const dateKey = getSessionDateKey(session, fullSession.editor_state);
+      const dateKey = getSessionDateKey(session, fullSession, timezone);
       const firstLine = getEntryFirstLine(session.name, fullSession.editor_state);
       if (!grouped[dateKey]) {
         grouped[dateKey] = [];
       }
 
-      const timestamp = normalizeTimestamp(session?.created_at || session?.updated_at);
+      const timestamp = getSessionTimestamp(session, fullSession);
       const displayTimestamp = timestamp ? timestamp.getTime() : Date.now();
 
       grouped[dateKey].push({

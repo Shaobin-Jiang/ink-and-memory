@@ -32,6 +32,14 @@ import { useAuth } from './contexts/AuthContext';
 import LoginForm from './components/Auth/LoginForm';
 import RegisterForm from './components/Auth/RegisterForm';
 import { STORAGE_KEYS } from './constants/storageKeys';
+import { getLocalDayKey, getTodayKeyInTimezone } from './utils/timezone';
+
+function createSessionId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
 
 // @@@ Left Toolbar Component - floating toolbelt within left margin
 function LeftToolbar({
@@ -307,20 +315,26 @@ export default function App() {
     }
   }, []);
   const timezoneSyncRef = useRef<string | null>(null);
+  const [userTimezone, setUserTimezone] = useState(browserTimezone);
+  const ensuredSessionForDayRef = useRef<string | null>(null);
+  const userTimezoneRef = useRef(userTimezone);
+
+  useEffect(() => {
+    userTimezoneRef.current = userTimezone;
+  }, [userTimezone]);
 
   const ensureStateForPersistence = useCallback((): EditorState | null => {
     if (engineRef.current) {
       const engineState = engineRef.current.getState();
       if (!engineState.createdAt) {
-        engineState.createdAt = new Date().toISOString().split('T')[0];
+        engineState.createdAt = new Date().toISOString();
         setState({ ...engineState });
       }
       return engineState;
     }
 
     if (state && !state.createdAt) {
-      const today = new Date().toISOString().split('T')[0];
-      const nextState = { ...state, createdAt: today };
+      const nextState = { ...state, createdAt: new Date().toISOString() };
       setState(nextState);
       return nextState;
     }
@@ -343,6 +357,16 @@ export default function App() {
     }
     return sessionId;
   }, [getFirstLineFromState]);
+
+  const persistSessionImmediately = useCallback(async (editorState: EditorState) => {
+    if (!isAuthenticated) return;
+    try {
+      const firstLine = getFirstLineFromState(editorState);
+      await saveSessionToDatabase(editorState, firstLine);
+    } catch (error) {
+      console.error('Failed to persist session immediately:', error);
+    }
+  }, [getFirstLineFromState, isAuthenticated, saveSessionToDatabase]);
 
   // @@@ Detect if this is a new inspiration appearing (different from previous)
   // Only check appearing when NOT disappearing (to avoid conflict)
@@ -387,6 +411,7 @@ export default function App() {
       return () => clearTimeout(timer);
     }
   }, [selectedState]);
+
 
   // @@@ Handle inspiration disappearing animation
   useEffect(() => {
@@ -508,9 +533,15 @@ export default function App() {
   }, [isAuthenticated, isLoading]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
     const timezone = browserTimezone || 'UTC';
     if (!timezone) return;
+
+    if (!isAuthenticated) {
+      setUserTimezone(timezone);
+      timezoneSyncRef.current = timezone;
+      return;
+    }
+
     if (timezoneSyncRef.current === timezone) return;
 
     const syncTimezone = async () => {
@@ -519,6 +550,9 @@ export default function App() {
         const prefs = await getPreferences();
         if ((prefs?.timezone || 'UTC') !== timezone) {
           await savePreferences({ timezone });
+          setUserTimezone(timezone);
+        } else {
+          setUserTimezone(prefs?.timezone || timezone);
         }
       } catch (error) {
         console.error('Failed to sync timezone preference:', error);
@@ -539,7 +573,7 @@ export default function App() {
     // @@@ Initialize createdAt for new session
     const initialState = engine.getState();
     if (!initialState.createdAt) {
-      initialState.createdAt = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      initialState.createdAt = new Date().toISOString();
       setState(initialState);
     }
 
@@ -549,6 +583,11 @@ export default function App() {
       if (!isAuthenticated) {
         localStorage.setItem(STORAGE_KEYS.EDITOR_STATE, JSON.stringify(newState));
       }
+    });
+    const unsubscribeBlankReset = engine.onBlankReset(async () => {
+      if (!isAuthenticated) return;
+      const blankState = engine.getState();
+      await persistSessionImmediately(blankState);
     });
 
     // Load initial state
@@ -579,8 +618,9 @@ export default function App() {
             )[0];
 
             // @@@ Daily reset check - same logic as StateChooser
-            const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-            const sessionDate = mostRecent.updated_at.split(' ')[0]; // Extract date from "YYYY-MM-DD HH:MM:SS"
+            const timezoneForDay = userTimezoneRef.current || 'UTC';
+            const today = getTodayKeyInTimezone(timezoneForDay);
+            const sessionDate = getLocalDayKey(mostRecent.updated_at, timezoneForDay);
 
             if (sessionDate === today) {
               // Same day - load the session
@@ -623,13 +663,17 @@ export default function App() {
             if (prefs.state_config) {
               setStateConfig(prefs.state_config);
             }
+            if (prefs.timezone) {
+              setUserTimezone(prefs.timezone);
+            }
 
             // @@@ Load selectedState with daily reset check for authenticated users
             if (prefs.selected_state !== undefined && prefs.selected_state !== null) {
-              const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-
-              // Extract date from database's updated_at timestamp (format: "YYYY-MM-DD HH:MM:SS")
-              const updatedAtDate = prefs.updated_at ? prefs.updated_at.split(' ')[0] : null;
+              const timezoneForDay = userTimezoneRef.current || 'UTC';
+              const today = getTodayKeyInTimezone(timezoneForDay);
+              const updatedAtDate = prefs.updated_at
+                ? getLocalDayKey(prefs.updated_at, timezoneForDay)
+                : null;
 
               // Check if state was updated today
               if (updatedAtDate === today) {
@@ -672,7 +716,7 @@ export default function App() {
         // @@@ Load selectedState with daily reset check
         const savedState = localStorage.getItem(STORAGE_KEYS.SELECTED_STATE);
         const savedDate = localStorage.getItem('selected-state-date');
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        const today = getTodayKeyInTimezone(userTimezoneRef.current || browserTimezone);
 
         // Reset state if it's a new day
         if (savedState && savedDate === today) {
@@ -684,10 +728,17 @@ export default function App() {
           setSelectedState(null);
         }
       }
+      if (!isAuthenticated) {
+        setUserTimezone(browserTimezone);
+      }
     };
 
     loadInitialState();
-  }, [isAuthenticated]);
+
+    return () => {
+      unsubscribeBlankReset();
+    };
+  }, [isAuthenticated, persistSessionImmediately]);
 
   // @@@ Sync localTexts from state when not composing
   useEffect(() => {
@@ -1114,6 +1165,57 @@ export default function App() {
     setShowWarning(true);
   }, []);
 
+  const buildBlankState = useCallback((): EditorState | null => {
+    const preservedSelectedState = engineRef.current?.getState().selectedState ?? selectedState ?? null;
+    const newSessionId = createSessionId();
+    return {
+      cells: [{ id: Math.random().toString(36).slice(2), type: 'text' as const, content: '' }],
+      commentors: [],
+      tasks: [],
+      weightPath: [],
+      overlappedPhrases: [],
+      sessionId: newSessionId,
+      currentEntryId: newSessionId,
+      selectedState: preservedSelectedState,
+      createdAt: new Date().toISOString()
+    };
+  }, [selectedState]);
+
+  const startDetachedBlankSession = useCallback((persistImmediately: boolean = false) => {
+    if (!engineRef.current) return;
+    const blankState = buildBlankState();
+    if (!blankState) return;
+
+    engineRef.current.loadState(blankState);
+    setState(blankState);
+    setLocalTexts(new Map());
+
+    if (!isAuthenticated) {
+      localStorage.setItem(STORAGE_KEYS.EDITOR_STATE, JSON.stringify(blankState));
+    } else if (persistImmediately) {
+      persistSessionImmediately(blankState);
+    }
+  }, [buildBlankState, isAuthenticated, persistSessionImmediately]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (!engineRef.current) return;
+    if (selectedState !== null) return;
+    const todayKey = getTodayKeyInTimezone(userTimezone);
+    if (!todayKey) return;
+
+    const currentState = engineRef.current.getState();
+    const currentKey = currentState.createdAt
+      ? getLocalDayKey(currentState.createdAt, userTimezone)
+      : null;
+
+    if (currentKey === todayKey) return;
+    if (ensuredSessionForDayRef.current === todayKey) return;
+
+    ensuredSessionForDayRef.current = todayKey;
+    startDetachedBlankSession(true);
+  }, [isAuthenticated, selectedState, startDetachedBlankSession, userTimezone]);
+
   // @@@ New session: save current, then create fresh (no data loss, no warning)
   const handleNewSession = useCallback(async () => {
     if (!state || !engineRef.current) return;
@@ -1150,7 +1252,7 @@ export default function App() {
     }
 
     // @@@ Create empty state with NEW sessionId
-    const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newSessionId = createSessionId();
     const emptyState: EditorState = {
       cells: [{ id: Math.random().toString(36).slice(2), type: 'text' as const, content: '' }],
       commentors: [],
@@ -1158,7 +1260,8 @@ export default function App() {
       weightPath: [],
       overlappedPhrases: [],
       sessionId: newSessionId,
-      currentEntryId: newSessionId
+      currentEntryId: newSessionId,
+      createdAt: new Date().toISOString()
     };
 
     // @@@ Load empty state directly into engine (immediate UI update)
@@ -1182,7 +1285,7 @@ export default function App() {
     if (!engineRef.current) return;
 
     // @@@ Create empty state with NEW sessionId
-    const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newSessionId = createSessionId();
     const emptyState: EditorState = {
       cells: [{ id: Math.random().toString(36).slice(2), type: 'text' as const, content: '' }],
       commentors: [],
@@ -1190,7 +1293,8 @@ export default function App() {
       weightPath: [],
       overlappedPhrases: [],
       sessionId: newSessionId,
-      currentEntryId: newSessionId  // @@@ Set currentEntryId to maintain invariant I5
+      currentEntryId: newSessionId,  // @@@ Set currentEntryId to maintain invariant I5
+      createdAt: new Date().toISOString()
     };
 
     // @@@ Load empty state directly into engine (immediate UI update)
@@ -1292,7 +1396,7 @@ export default function App() {
       }
 
       if (!loadedState.createdAt) {
-        loadedState.createdAt = new Date().toISOString().split('T')[0];
+        loadedState.createdAt = new Date().toISOString();
         engineRef.current.loadState(loadedState);
       }
 
@@ -1312,9 +1416,17 @@ export default function App() {
     setTimelineFriendToSelect(null);
   }, []);
 
+  const handleCalendarEntryDeleted = useCallback((entryId: string) => {
+    if (!entryId || !engineRef.current) return;
+    const currentId = engineRef.current.getState().currentEntryId;
+    if (currentId === entryId) {
+      startDetachedBlankSession();
+    }
+  }, [startDetachedBlankSession]);
+
   const handleStateChoose = useCallback(async (stateId: string) => {
     setSelectedState(stateId);
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const todayKey = getTodayKeyInTimezone(userTimezone);
 
     // @@@ NEW: Save to EditorState (per-session storage)
     if (engineRef.current) {
@@ -1322,7 +1434,7 @@ export default function App() {
       currentState.selectedState = stateId;
       // Set createdAt only if not already set
       if (!currentState.createdAt) {
-        currentState.createdAt = today;
+        currentState.createdAt = new Date().toISOString();
       }
       setState(currentState);
     }
@@ -1338,9 +1450,9 @@ export default function App() {
       }
     } else {
       localStorage.setItem(STORAGE_KEYS.SELECTED_STATE, stateId);
-      localStorage.setItem('selected-state-date', today);
+      localStorage.setItem('selected-state-date', todayKey);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, userTimezone]);
 
   // @@@ Insert @ character at the end of last text cell
   const handleInsertAgent = useCallback(() => {
@@ -2517,6 +2629,7 @@ export default function App() {
           voiceConfigs={voiceConfigs}
           friendToSelect={timelineFriendToSelect}
           onFriendSelectionHandled={handleFriendSelectionHandled}
+          timezone={userTimezone}
         />
       </div>
       {currentView === 'analysis' && (
@@ -2650,8 +2763,10 @@ export default function App() {
       {showCalendarPopup && (
         <CalendarPopup
           onLoadEntry={handleLoadEntry}
-          currentEntryId={state.currentEntryId}
+          currentEntryId={state?.currentEntryId}
+          onEntryDeleted={handleCalendarEntryDeleted}
           onClose={() => setShowCalendarPopup(false)}
+          timezone={userTimezone}
         />
       )}
     </>

@@ -3,11 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { StateCube } from './StateCube';
 import type { StateConfig } from '../api/voiceApi';
 import { getDateLocale } from '../i18n';
+import { parseFlexibleTimestamp } from '../utils/timezone';
 
 interface Props {
   stateConfig: StateConfig;
   selectedState: string | null;
-  createdAt?: string;  // @@@ Optional creation date (YYYY-MM-DD)
+  createdAt?: string;  // ISO timestamp recorded when the session was created
   onChoose: (stateId: string) => void;
 }
 
@@ -31,9 +32,8 @@ export default function StateChooser({ stateConfig, selectedState, createdAt, on
   const selectedStateData = selectedState ? stateConfig.states[selectedState] : null;
 
   // @@@ Use createdAt if provided, otherwise use today
-  const displayDate = createdAt
-    ? new Date(createdAt + 'T00:00:00')
-    : new Date();
+  const timestamp = createdAt ? parseFlexibleTimestamp(createdAt) : null;
+  const displayDate = timestamp ?? new Date();
 
   const dateLocale = getDateLocale(i18n.language);
   const dateString = displayDate.toLocaleDateString(dateLocale, {

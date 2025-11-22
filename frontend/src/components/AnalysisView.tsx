@@ -501,7 +501,7 @@ export default function AnalysisView() {
               gap: '1.5rem',
               marginBottom: '2rem'
             }}>
-              {savedReports.map((report, idx) => (
+              {savedReports.slice(0, 3).map((report, idx) => (
                 <div
                   key={report.id}
                   onClick={() => {

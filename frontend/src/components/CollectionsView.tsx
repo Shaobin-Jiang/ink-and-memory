@@ -35,9 +35,10 @@ interface CollectionsViewProps {
   voiceConfigs: Record<string, any>;
   friendToSelect?: number | null;
   onFriendSelectionHandled?: () => void;
+  timezone: string;
 }
 
-export default function CollectionsView({ isVisible, voiceConfigs, friendToSelect, onFriendSelectionHandled }: CollectionsViewProps) {
+export default function CollectionsView({ isVisible, voiceConfigs, friendToSelect, onFriendSelectionHandled, timezone }: CollectionsViewProps) {
   const { i18n } = useTranslation();
   const dateLocale = getDateLocale(i18n.language);
   return (
@@ -55,6 +56,7 @@ export default function CollectionsView({ isVisible, voiceConfigs, friendToSelec
         dateLocale={dateLocale}
         friendToSelect={friendToSelect}
         onFriendSelectionHandled={onFriendSelectionHandled}
+        timezone={timezone}
       />
     </div>
   );
@@ -455,9 +457,10 @@ interface TimelinePageProps {
   dateLocale: string;
   friendToSelect?: number | null;
   onFriendSelectionHandled?: () => void;
+  timezone: string;
 }
 
-function TimelinePage({ isVisible, voiceConfigs, dateLocale, friendToSelect, onFriendSelectionHandled }: TimelinePageProps) {
+function TimelinePage({ isVisible, voiceConfigs, dateLocale, friendToSelect, onFriendSelectionHandled, timezone }: TimelinePageProps) {
   const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
   const [starredComments, setStarredComments] = useState<Commentor[]>([]);
@@ -584,7 +587,10 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, friendToSelect, onF
       if (isAuthenticated) {
         try {
           const { listSessions, getSession } = await import('../api/voiceApi');
-          const groupedEntries = await loadSessionsGroupedByDate(listSessions, getSession, { requireName: true });
+          const groupedEntries = await loadSessionsGroupedByDate(listSessions, getSession, {
+            requireName: true,
+            timezone
+          });
 
           const allStarred: Commentor[] = [];
           const commentsByDate = new Map<string, Commentor[]>();
@@ -773,7 +779,7 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, friendToSelect, onF
 
     loadTimelineData();
     loadFriendsList();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, timezone, dateLocale]);
 
   // @@@ Group items by date (using YYYY-MM-DD format to match timeline days)
   const timelineByDate = new Map<string, TimelineEntryData>();

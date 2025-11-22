@@ -16,7 +16,7 @@ export interface EditorState {
   sessionId: string;
   currentEntryId?: string;  // Track which calendar entry is being edited (for overwrite on save)
   selectedState?: string | null;  // @@@ Emotional state for this session (stored per-session)
-  createdAt?: string;  // @@@ ISO date when session was created (YYYY-MM-DD)
+  createdAt?: string;  // @@@ ISO timestamp when session was created
 }
 
 export type Cell = TextCell | WidgetCell;
@@ -123,6 +123,7 @@ export class EditorEngine {
   private sentCache: Map<string, string> = new Map(); // Track sent sentences -> commentor hash
   private onStateChange?: (state: EditorState) => void;
   private isRequesting: boolean = false; // Track if request in progress
+  private blankResetSubscribers: Set<() => void> = new Set();
 
   constructor(sessionId: string) {
     this.state = {
@@ -134,6 +135,21 @@ export class EditorEngine {
       sessionId,
       currentEntryId: sessionId  // @@@ Set currentEntryId synchronously to prevent duplicate UUIDs
     };
+  }
+
+  onBlankReset(callback: () => void) {
+    this.blankResetSubscribers.add(callback);
+    return () => this.blankResetSubscribers.delete(callback);
+  }
+
+  private notifyBlankReset() {
+    this.blankResetSubscribers.forEach(cb => {
+      try {
+        cb();
+      } catch (error) {
+        console.error('Blank reset subscriber failed', error);
+      }
+    });
   }
 
   // @@@ Update voice configurations from settings
@@ -216,9 +232,10 @@ export class EditorEngine {
     return combinedText.trim().length === 0;
   }
 
-  // @@@ Restore editor to pristine state while preserving session metadata
+  // @@@ Restore editor to pristine state while starting a fresh session
   private resetEditorToBlank() {
-    const { sessionId, currentEntryId, selectedState, createdAt } = this.state;
+    const { selectedState, sessionId, currentEntryId, createdAt } = this.state;
+    const preservedTimestamp = createdAt ?? new Date().toISOString();
 
     this.state = {
       cells: [{ id: generateId(), type: 'text', content: '' }],
@@ -227,9 +244,9 @@ export class EditorEngine {
       weightPath: [],
       overlappedPhrases: [],
       sessionId,
-      currentEntryId,
+      currentEntryId: currentEntryId ?? sessionId,
       selectedState,
-      createdAt
+      createdAt: preservedTimestamp
     };
 
     this.usedEnergy = 0;
@@ -238,6 +255,7 @@ export class EditorEngine {
     this.isRequesting = false;
 
     this.notifyChange();
+    this.notifyBlankReset();
   }
 
 

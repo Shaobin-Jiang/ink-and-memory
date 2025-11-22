@@ -13,6 +13,7 @@ import sqlite3
 import os
 from pathlib import Path
 from datetime import datetime, timedelta
+from typing import Optional, Union
 import json
 
 # Database location
@@ -1024,18 +1025,28 @@ def get_user_by_id(user_id: int):
 
 # ========== Session Storage ==========
 
-def save_session(user_id: int, session_id: str, editor_state: dict, name: str = None):
+def _normalize_created_at(created_at: Optional[Union[str, datetime]]) -> Optional[str]:
+    if created_at is None:
+        return None
+    if isinstance(created_at, datetime):
+        return created_at.strftime("%Y-%m-%d %H:%M:%S")
+    return str(created_at)
+
+
+def save_session(user_id: int, session_id: str, editor_state: dict, name: str = None,
+                 created_at: Optional[Union[str, datetime]] = None):
     """Save or update a user session."""
     db = get_db()
     try:
+        created_at_value = _normalize_created_at(created_at)
         db.execute("""
-        INSERT INTO user_sessions (id, user_id, name, editor_state_json, updated_at)
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO user_sessions (id, user_id, name, editor_state_json, created_at, updated_at)
+        VALUES (?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP)
         ON CONFLICT(id) DO UPDATE SET
           editor_state_json = excluded.editor_state_json,
-          name = COALESCE(excluded.name, name),
+          name = COALESCE(excluded.name, user_sessions.name),
           updated_at = CURRENT_TIMESTAMP
-        """, (session_id, user_id, name, json.dumps(editor_state)))
+        """, (session_id, user_id, name, json.dumps(editor_state), created_at_value))
         db.commit()
     finally:
         db.close()
