@@ -63,8 +63,7 @@ def build_editor_state(session_id: str, text: str, created_at_iso: str) -> dict:
         "tasks": [],
         "weightPath": [],
         "overlappedPhrases": [],
-        "sessionId": session_id,
-        "currentEntryId": session_id,
+        "id": session_id,
         "selectedState": None,
         "createdAt": created_at_iso
     }

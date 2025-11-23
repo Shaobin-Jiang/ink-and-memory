@@ -13,8 +13,7 @@ export interface EditorState {
   tasks: Task[];
   weightPath: WeightEntry[];
   overlappedPhrases: string[];  // @@@ Phrases rejected due to overlap (feedback to backend)
-  sessionId: string;
-  currentEntryId?: string;  // Track which calendar entry is being edited (for overwrite on save)
+  id: string;
   selectedState?: string | null;  // @@@ Emotional state for this session (stored per-session)
   createdAt?: string;  // @@@ ISO timestamp when session was created
 }
@@ -132,8 +131,7 @@ export class EditorEngine {
       tasks: [],
       weightPath: [],
       overlappedPhrases: [],
-      sessionId,
-      currentEntryId: sessionId  // @@@ Set currentEntryId synchronously to prevent duplicate UUIDs
+      id: sessionId
     };
   }
 
@@ -234,8 +232,9 @@ export class EditorEngine {
 
   // @@@ Restore editor to pristine state while starting a fresh session
   private resetEditorToBlank() {
-    const { selectedState, sessionId, currentEntryId, createdAt } = this.state;
+    const { selectedState, createdAt } = this.state;
     const preservedTimestamp = createdAt ?? new Date().toISOString();
+    const newSessionId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
 
     this.state = {
       cells: [{ id: generateId(), type: 'text', content: '' }],
@@ -243,8 +242,7 @@ export class EditorEngine {
       tasks: [],
       weightPath: [],
       overlappedPhrases: [],
-      sessionId,
-      currentEntryId: currentEntryId ?? sessionId,
+      id: newSessionId,
       selectedState,
       createdAt: preservedTimestamp
     };
@@ -433,7 +431,7 @@ export class EditorEngine {
         ? stateConfig.states[selectedState].prompt
         : '';
 
-      const result = await analyzeText(text, this.state.sessionId, appliedCommentors, metaPrompt, statePrompt, this.state.overlappedPhrases);
+      const result = await analyzeText(text, this.state.id, appliedCommentors, metaPrompt, statePrompt, this.state.overlappedPhrases);
 
       // Backend returns at most ONE voice
       if (result.voices.length > 0) {
@@ -705,7 +703,10 @@ export class EditorEngine {
 
   // @@@ Load state from storage
   loadState(state: EditorState) {
-    this.state = state;
+    if (!state.id) {
+      throw new Error('EditorState.id is required when loading');
+    }
+    this.state = { ...state };
     // @@@ Ensure overlappedPhrases field exists (migration for old state)
     if (!this.state.overlappedPhrases) {
       this.state.overlappedPhrases = [];
@@ -717,7 +718,8 @@ export class EditorEngine {
 
   // @@@ Set current entry ID (for calendar overwrite tracking)
   setCurrentEntryId(entryId: string | undefined) {
-    this.state.currentEntryId = entryId;
+    if (!entryId) return;
+    this.state.id = entryId;
     this.notifyChange();
   }
 

@@ -59,20 +59,20 @@ export function saveEntryToToday(state: EditorState): string {
   const today = getTodayKey();
 
   // @@@ Check if we're overwriting an existing entry
-  if (state.currentEntryId) {
+  if (state.id) {
     // Find and update the existing entry across all dates
     for (const dateKey of Object.keys(data)) {
-      const entryIndex = data[dateKey].findIndex(e => e.id === state.currentEntryId);
+      const entryIndex = data[dateKey].findIndex(e => e.id === state.id);
       if (entryIndex !== -1) {
         // Update existing entry
         data[dateKey][entryIndex] = {
-          id: state.currentEntryId,
+          id: state.id,
           timestamp: Date.now(),
           state: state,
           firstLine: extractFirstLine(state)
         };
         saveCalendarData(data);
-        return state.currentEntryId;
+        return state.id;
       }
     }
   }
@@ -82,8 +82,9 @@ export function saveEntryToToday(state: EditorState): string {
     data[today] = [];
   }
 
+  const generatedId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const entry: CalendarEntry = {
-    id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    id: generatedId,
     timestamp: Date.now(),
     state: state,
     firstLine: extractFirstLine(state)
@@ -92,7 +93,8 @@ export function saveEntryToToday(state: EditorState): string {
   data[today].push(entry);
   saveCalendarData(data);
 
-  return entry.id;
+  state.id = generatedId;
+  return generatedId;
 }
 
 export function getEntriesForDate(dateKey: string): CalendarEntry[] {

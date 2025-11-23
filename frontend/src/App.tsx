@@ -14,7 +14,7 @@ import {
 import TopNavBar from './components/TopNavBar';
 import DeckManager from './components/DeckManager';
 import CalendarPopup from './components/CalendarPopup';
-import { saveEntryToToday, type CalendarEntry } from './utils/calendarStorage';
+import { type CalendarEntry } from './utils/calendarStorage';
 import CollectionsView from './components/CollectionsView';
 import AnalysisView from './components/AnalysisView';
 import AboutView from './components/AboutView';
@@ -339,6 +339,10 @@ export default function App() {
       return nextState;
     }
 
+    if (state && !state.id) {
+      throw new Error('Editor state is missing id');
+    }
+
     return state;
   }, [state]);
 
@@ -350,16 +354,13 @@ export default function App() {
   const saveSessionToDatabase = useCallback(async (editorState: EditorState, firstLine?: string) => {
     const line = firstLine ?? getFirstLineFromState(editorState);
     const { saveSession } = await import('./api/voiceApi');
-    const idToSave = editorState.currentEntryId || crypto.randomUUID();
+    const idToSave = editorState.id || crypto.randomUUID();
     await saveSession(idToSave, editorState, line);
 
     if (engineRef.current) {
-      const liveId = engineRef.current.getState().currentEntryId;
-      const snapshotId = editorState.currentEntryId;
-      const isSafeToUpdate =
-        !liveId ||
-        liveId === idToSave ||
-        (snapshotId && liveId === snapshotId);
+      const liveId = engineRef.current.getState().id;
+      const snapshotId = editorState.id;
+      const isSafeToUpdate = liveId === idToSave || liveId === snapshotId;
 
       if (isSafeToUpdate) {
         engineRef.current.setCurrentEntryId(idToSave);
@@ -648,9 +649,11 @@ export default function App() {
           }
 
           if (sessionToLoad && loadedSessionId) {
-            engine.loadState(sessionToLoad);
-            // @@@ CRITICAL: Set currentEntryId to the loaded session ID
-            engine.setCurrentEntryId(loadedSessionId);
+            const normalizedState: EditorState = {
+              ...sessionToLoad,
+              id: sessionToLoad.id || (sessionToLoad as any)?.currentEntryId || (sessionToLoad as any)?.sessionId || loadedSessionId
+            };
+            engine.loadState(normalizedState);
             setState(engine.getState());
 
             // Initialize localTexts from loaded state
@@ -807,16 +810,16 @@ export default function App() {
       if (!stateSnapshot) return;
 
       if (engineRef.current) {
-        const liveId = engineRef.current.getState().currentEntryId;
-        const snapshotId = stateSnapshot.currentEntryId;
+        const liveId = engineRef.current.getState().id;
+        const snapshotId = stateSnapshot.id;
         if (liveId && snapshotId && liveId !== snapshotId) {
           console.warn(`✋ Auto-save aborted: timer captured ${snapshotId} but editor is now on ${liveId}`);
           return;
         }
       }
 
-      if (!stateSnapshot.currentEntryId) {
-        console.error('BUG: currentEntryId should always be defined after engine init');
+      if (!stateSnapshot.id) {
+        console.error('BUG: session id should always be defined after engine init');
         return;
       }
 
@@ -1209,8 +1212,7 @@ export default function App() {
       tasks: [],
       weightPath: [],
       overlappedPhrases: [],
-      sessionId: newSessionId,
-      currentEntryId: newSessionId,
+      id: newSessionId,
       selectedState: resolvedSelectedState ?? undefined,
       createdAt: new Date().toISOString()
     };
@@ -1269,9 +1271,8 @@ export default function App() {
           const firstTextCell = state.cells.find(c => c.type === 'text') as TextCell | undefined;
           const firstLine = firstTextCell?.content.split('\n')[0].trim() || 'Untitled';
 
-          // @@@ Ensure we have a valid sessionId
           const { saveSession } = await import('./api/voiceApi');
-          const sessionId = state.currentEntryId || crypto.randomUUID();
+          const sessionId = state.id || crypto.randomUUID();
           console.log('📋 Saving session:', sessionId, 'with name:', firstLine);
           await saveSession(sessionId, state, firstLine);
           console.log('✅ Current session saved successfully');
@@ -1318,7 +1319,7 @@ export default function App() {
       // @@@ Save to database in background
       try {
         const { saveSession } = await import('./api/voiceApi');
-        await saveSession(emptyState.currentEntryId!, emptyState);
+        await saveSession(emptyState.id, emptyState);
       } catch (error) {
         console.error('Failed to save new session:', error);
       }
@@ -1331,24 +1332,40 @@ export default function App() {
 
   const handleSaveToday = useCallback(async () => {
     if (!engineRef.current) return;
+    if (!isAuthenticated) {
+      const toast = document.createElement('div');
+      toast.textContent = 'Please sign in to save';
+      toast.style.cssText = `
+        position: fixed;
+        top: 70px;
+        right: 20px;
+        background: #f44336;
+        color: white;
+        padding: 12px 20px;
+        borderRadius: 6px;
+        fontSize: 14px;
+        fontFamily: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+        zIndex: 10000;
+        boxShadow: 0 4px 12px rgba(0,0,0,0.15);
+      `;
+      document.body.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s';
+        setTimeout(() => document.body.removeChild(toast), 300);
+      }, 2000);
+      return;
+    }
     const currentState = ensureStateForPersistence();
     if (!currentState) return;
 
     try {
-      const hadExistingId = Boolean(currentState.currentEntryId);
-      let updatedFlag = hadExistingId;
-
-      if (isAuthenticated) {
-        const firstLine = getFirstLineFromState(currentState);
-        const savedSessionId = await saveSessionToDatabase(currentState, firstLine);
-        engineRef.current.setCurrentEntryId(savedSessionId);
-      } else {
-        const entryId = saveEntryToToday(currentState);
-        engineRef.current.setCurrentEntryId(entryId);
-      }
+      const firstLine = getFirstLineFromState(currentState);
+      const savedSessionId = await saveSessionToDatabase(currentState, firstLine);
+      engineRef.current.setCurrentEntryId(savedSessionId);
 
       const toast = document.createElement('div');
-      toast.textContent = updatedFlag ? 'Saved (updated)' : 'Saved';
+      toast.textContent = 'Saved';
       toast.style.cssText = `
         position: fixed;
         top: 70px;
@@ -1400,13 +1417,11 @@ export default function App() {
 
     const nextState: EditorState = {
       ...entry.state,
-      currentEntryId: entry.id,
+      id: entry.id,
       createdAt: entry.state.createdAt ?? new Date().toISOString()
     };
 
     engineRef.current.loadState(nextState);
-    engineRef.current.setCurrentEntryId(entry.id);
-
     if (nextState.selectedState !== undefined) {
       setSelectedState(nextState.selectedState);
     }
@@ -1426,7 +1441,7 @@ export default function App() {
 
   const handleCalendarEntryDeleted = useCallback((entryId: string) => {
     if (!entryId || !engineRef.current) return;
-    const currentId = engineRef.current.getState().currentEntryId;
+    const currentId = engineRef.current.getState().id;
     if (currentId === entryId) {
       startDetachedBlankSession();
     }
@@ -2771,7 +2786,7 @@ export default function App() {
       {showCalendarPopup && (
         <CalendarPopup
           onLoadEntry={handleLoadEntry}
-          currentEntryId={state?.currentEntryId}
+          currentEntryId={state?.id}
           onEntryDeleted={handleCalendarEntryDeleted}
           onClose={() => setShowCalendarPopup(false)}
           timezone={userTimezone}
